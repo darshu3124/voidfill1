@@ -1,0 +1,22 @@
+# Python virtual environment
+venv/
+ENV/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Database
+instance/
+*.db
+
+# Uploaded and Processed images (usually not put in git)
+static/uploads/*
+static/processed/*
+!static/uploads/.gitkeep
+!static/processed/.gitkeep
+
+# OS generated files
+.DS_Store
+Thumbs.db
