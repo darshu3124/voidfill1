@@ -2,11 +2,46 @@
 
 {% block content %}
 
+<div class="row mb-4">
+    <div class="col-md-6 mt-3 mt-md-0">
+        <div class="card shadow border-0 bg-primary text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Student Profile</h5>
+                <hr>
+                <p><strong>Name:</strong> {{ current_user.name }}</p>
+                <p><strong>Email:</strong> {{ current_user.email }}</p>
+                <a href="{{ url_for('logout') }}" class="btn btn-light btn-sm mt-2">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mt-3 mt-md-0">
+        <div
+            class="card shadow border-0 {% if results and results[0].status == 'Pass' %}bg-success{% elif results %}bg-danger{% else %}bg-secondary{% endif %} text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Latest Exam Result</h5>
+                <hr>
+                {% if results %}
+                {% set latest = results[0] %}
+                <p><strong>Subject:</strong> {{ latest.subject_rel.name }}</p>
+                <p><strong>Score:</strong> {{ latest.score }} / {{ latest.total_questions }} ({{
+                    "%.2f"|format(latest.percentage) }}%)</p>
+                <p><strong>Status:</strong> {{ latest.status }}</p>
+                <a href="{{ url_for('view_result', result_id=latest.id) }}" class="btn btn-light btn-sm mt-2">View
+                    Result</a>
+                {% else %}
+                <p>No exam results available yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-12">
         <div class="card shadow-lg border-0 mb-4">
-            <div class="card-header text-white">
-                <i class="bi bi-clock-history me-2"></i> Evaluation History
+            <div class="card-header text-white bg-dark">
+                <i class="bi bi-clock-history me-2"></i> All Evaluation History
             </div>
             <div class="card-body">
                 <div class="table-responsive">

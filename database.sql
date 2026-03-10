@@ -13,8 +13,18 @@ CREATE TABLE IF NOT EXISTS admin (
 CREATE TABLE IF NOT EXISTS students (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- OTP Table
+CREATE TABLE IF NOT EXISTS email_otps (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(150) NOT NULL,
+    otp_code VARCHAR(6) NOT NULL,
+    expires_at DATETIME NOT NULL
 );
 
 -- Answer Key Table
@@ -28,14 +38,15 @@ CREATE TABLE IF NOT EXISTS answer_key (
 CREATE TABLE IF NOT EXISTS results (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT,
-    score INT,
-    total_questions INT,
-    uploaded_image VARCHAR(255),
-    processed_image VARCHAR(255),
+    subject_id INT,
+    student_email VARCHAR(150),
+    marks INT,
+    total_marks INT,
     percentage FLOAT,
-    status VARCHAR(20),
-    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    result_pdf VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subject(id) ON DELETE CASCADE
 );
 
 -- Insert Default Admin

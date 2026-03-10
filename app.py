@@ -3,16 +3,40 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from config import Config
 from omr_processor import process_omr
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 import io
+from utils.otp_generator import generate_otp
+from utils.email_service import send_otp_email, send_result_email
+import socket
+import pytz
+from datetime import datetime, timedelta
+
+def get_ist_now():
+    return datetime.now(pytz.timezone('Asia/Kolkata'))
+
+def get_lan_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('10.255.255.255', 1))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
 db = SQLAlchemy(app)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'student_login'
+
 
 # --- DATABASE MODELS ---
 
@@ -27,12 +51,21 @@ class Admin(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
 
-class Student(db.Model):
+class Student(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
+    verified = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=get_ist_now)
     results = db.relationship('Result', backref='student', lazy=True)
+
+class EmailOTP(db.Model):
+    __tablename__ = 'email_otps'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(150), nullable=False)
+    otp_code = db.Column(db.String(6), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
 
 class AnswerKey(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -52,7 +85,13 @@ class Result(db.Model):
     processed_image = db.Column(db.String(255), nullable=False)
     percentage = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), nullable=False)
-    date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    result_pdf = db.Column(db.String(255), nullable=True)
+    date = db.Column(db.DateTime, default=get_ist_now)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Student.query.get(int(user_id))
+
 
 # Ensure directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -95,19 +134,64 @@ def student_register():
         email = request.form['email']
         password = request.form['password']
         
-        hashed_pw = generate_password_hash(password)
+        existing_student = Student.query.filter_by(email=email).first()
+        if existing_student and existing_student.verified:
+            flash('Email already registered!', 'danger')
+            return redirect(url_for('student_login'))
+            
+        otp = generate_otp()
+        expires = get_ist_now() + timedelta(minutes=5)
         
         try:
-            new_student = Student(name=name, email=email, password=hashed_pw)
-            db.session.add(new_student)
+            new_otp = EmailOTP(email=email, otp_code=otp, expires_at=expires)
+            db.session.add(new_otp)
+            
+            if not existing_student:
+                hashed_pw = generate_password_hash(password)
+                new_student = Student(name=name, email=email, password=hashed_pw, verified=False)
+                db.session.add(new_student)
+            else:
+                existing_student.password = generate_password_hash(password)
+                
             db.session.commit()
-            flash('Registration successful! Please login.', 'success')
-            return redirect(url_for('student_login'))
+            
+            send_otp_email(email, otp)
+            session['verify_email'] = email
+            flash('An OTP has been sent to your email.', 'info')
+            return redirect(url_for('verify_otp'))
         except Exception as e:
             db.session.rollback()
             flash(f'Database exception: {e}', 'danger')
             
     return render_template('student_register.html')
+
+@app.route('/verify_otp', methods=['GET', 'POST'])
+def verify_otp():
+    if 'verify_email' not in session:
+        return redirect(url_for('student_register'))
+        
+    email = session['verify_email']
+        
+    if request.method == 'POST':
+        otp_entered = request.form['otp']
+        
+        otp_record = EmailOTP.query.filter_by(email=email, otp_code=otp_entered).filter(EmailOTP.expires_at > get_ist_now()).first()
+        
+        if otp_record:
+            student = Student.query.filter_by(email=email).first()
+            if student:
+                student.verified = True
+                db.session.commit()
+                # Clear all otps for this email
+                EmailOTP.query.filter_by(email=email).delete()
+                db.session.commit()
+                session.pop('verify_email', None)
+                flash('Email verified successfully! You can now log in.', 'success')
+                return redirect(url_for('student_login'))
+        else:
+            flash('Invalid or expired OTP', 'danger')
+            
+    return render_template('verify_otp.html', email=email)
 
 @app.route('/student_login', methods=['GET', 'POST'])
 def student_login():
@@ -118,9 +202,22 @@ def student_login():
         student = Student.query.filter_by(email=email).first()
         
         if student and check_password_hash(student.password, password):
-            session['student_id'] = student.id
+            if not student.verified:
+                flash('Please verify your email first.', 'warning')
+                return redirect(url_for('student_login'))
+                
+            login_user(student)
             session['role'] = 'student'
+            session['student_id'] = student.id
             flash('Logged in successfully.', 'success')
+            
+            next_url = request.form.get('next') or request.args.get('next')
+            if next_url:
+                from urllib.parse import urlparse
+                # Ensure the url is safe
+                if not urlparse(next_url).netloc:
+                    return redirect(next_url)
+                    
             return redirect(url_for('student_dashboard'))
         else:
             flash('Invalid email or password', 'danger')
@@ -129,6 +226,7 @@ def student_login():
 
 @app.route('/logout')
 def logout():
+    logout_user()
     session.clear()
     flash('Logged out successfully.', 'info')
     return redirect(url_for('index'))
@@ -194,12 +292,10 @@ def add_subject():
             flash(f'Error adding subject: {e}', 'danger')
     return redirect(url_for('admin_dashboard'))
 
-@app.route('/student_dashboard')
+@app.route('/student/dashboard')
+@login_required
 def student_dashboard():
-    if session.get('role') != 'student':
-        return redirect(url_for('student_login'))
-        
-    results = Result.query.filter_by(student_id=session['student_id']).order_by(Result.date.desc()).all()
+    results = Result.query.filter_by(student_id=current_user.id).order_by(Result.date.desc()).all()
     return render_template('student_dashboard.html', results=results)
 
 @app.route('/admin/bulk_key', methods=['POST'])
@@ -329,9 +425,44 @@ def upload_omr():
                 db.session.add(new_result)
                 db.session.commit()
                 result_id = new_result.id
+                
+                # Generate PDF and notify student
+                student = Student.query.get(student_id)
+                pdf_filename = f"result_{result_id}_{int(time.time())}.pdf"
+                pdf_path = os.path.join(app.config.get('RESULTS_FOLDER', 'static/results'), pdf_filename)
+                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+                
+                buffer = io.BytesIO()
+                p = canvas.Canvas(buffer, pagesize=letter)
+                p.drawString(100, 750, "OMR Sheet Detection and Marking System - Result Report")
+                p.drawString(100, 730, f"Student Name: {student.name}")
+                p.drawString(100, 710, f"Exam Date: {new_result.date.strftime('%Y-%m-%d %H:%M')}")
+                p.drawString(100, 690, f"Marks: {new_result.score} / {new_result.total_questions}")
+                p.drawString(100, 670, f"Percentage: {new_result.percentage:.2f}%")
+                p.drawString(100, 650, f"Status: {new_result.status}")
+                p.showPage()
+                p.save()
+                
+                with open(pdf_path, 'wb') as f:
+                    f.write(buffer.getvalue())
+                
+                new_result.result_pdf = pdf_filename
+                db.session.commit()
+                
+                result_url = url_for('view_result', result_id=result_id, _external=True)
+                
+                # Replace localhost with actual LAN IP for external access
+                from urllib.parse import urlparse
+                parsed_url = urlparse(result_url)
+                if parsed_url.hostname in ['127.0.0.1', 'localhost', '0.0.0.0']:
+                    lan_ip = get_lan_ip()
+                    result_url = result_url.replace(parsed_url.hostname, lan_ip)
+                
+                send_result_email(student.email, student.name, result_url)
+                
             except Exception as e:
                 db.session.rollback()
-                flash(f'Database failure: {e}', 'danger')
+                flash(f'Database/PDF failure: {e}', 'danger')
                 return redirect(request.url)
                 
             flash(f'Successfully evaluated OMR for {new_result.student.name} ({new_result.subject_rel.name})!', 'success')
@@ -390,53 +521,42 @@ def upload_key_image():
     return redirect(url_for('admin_dashboard', subject_id=subject_id))
 
 
-@app.route('/result/<int:result_id>')
+@app.route('/student/result/<int:result_id>')
 def view_result(result_id):
-    if not session.get('role'):
-        return redirect(url_for('index'))
-        
     result = Result.query.get_or_404(result_id)
     
-    # Check authorization: admin can see all, student only their own
-    if session.get('role') == 'student' and result.student_id != session.get('student_id'):
+    is_admin = session.get('role') == 'admin'
+    is_student_owner = current_user.is_authenticated and result.student_id == current_user.id
+    
+    if not (is_admin or is_student_owner):
+        if not current_user.is_authenticated and not is_admin:
+            flash("Please log in to access this page.", "warning")
+            return redirect(url_for('student_login', next=request.url))
         flash("You are not authorized to view this result.", "danger")
-        return redirect(url_for('student_dashboard'))
+        return redirect(url_for('student_dashboard') if current_user.is_authenticated else url_for('index'))
         
     return render_template('result.html', result=result)
 
 @app.route('/download_pdf/<int:result_id>')
 def download_pdf(result_id):
-    if session.get('role') != 'student':
-        return redirect(url_for('student_login'))
-        
-    result = Result.query.filter_by(id=result_id, student_id=session['student_id']).first()
+    result = Result.query.get_or_404(result_id)
     
-    if not result:
-        flash("Result not found.", "danger")
-        return redirect(url_for('student_dashboard'))
-        
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    p.drawString(100, 750, "OMR Sheet Detection and Marking System - Result Report")
-    p.drawString(100, 730, f"Student Name: {result.student.name}")
-    p.drawString(100, 710, f"Date: {result.date}")
-    p.drawString(100, 690, f"Score: {result.score} / {result.total_questions}")
-    p.drawString(100, 670, f"Percentage: {result.percentage:.2f}%")
-    p.drawString(100, 650, f"Status: {result.status}")
+    is_admin = session.get('role') == 'admin'
+    is_student_owner = current_user.is_authenticated and result.student_id == current_user.id
     
-    try:
-        proc_img_path = os.path.join(app.config['PROCESSED_FOLDER'], result.processed_image)
-        if os.path.exists(proc_img_path):
-            p.drawImage(proc_img_path, 100, 300, width=400, preserveAspectRatio=True)
-    except Exception as e:
-        print("Image processing print pdf err:", e)
-        pass
-        
-    p.showPage()
-    p.save()
-    buffer.seek(0)
+    if not (is_admin or is_student_owner):
+        flash("You are not authorized to download this PDF.", "danger")
+        return redirect(url_for('student_dashboard') if current_user.is_authenticated else url_for('index'))
     
-    return send_file(buffer, as_attachment=True, download_name=f"result_{result_id}.pdf", mimetype='application/pdf')
+    if not result.result_pdf:
+        flash("PDF not generated.", "danger")
+        return redirect(url_for('view_result', result_id=result_id))
+        
+    pdf_path = os.path.join(app.config.get('RESULTS_FOLDER', 'static/results'), result.result_pdf)
+    if os.path.exists(pdf_path):
+        return send_file(pdf_path, as_attachment=True)
+    flash("PDF file missing.", "danger")
+    return redirect(url_for('view_result', result_id=result_id))
 
 # Error Handling
 @app.errorhandler(413) # File size exceeded

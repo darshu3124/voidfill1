@@ -178,8 +178,8 @@ def evaluate_answers(thresh, rows, answer_key):
                 bubble_area = cv2.contourArea(c)
                 fill_ratio = total / float(bubble_area) if bubble_area > 0 else 0
                 
-                # Minimum threshold to count as a mark (15%)
-                if fill_ratio > 0.15 and fill_ratio > max_fill_ratio:
+                # Minimum threshold to count as a mark (more robust 20%)
+                if fill_ratio > 0.20 and fill_ratio > max_fill_ratio:
                     max_fill_ratio = fill_ratio
                     bubbled_col = col_idx
 
@@ -212,6 +212,9 @@ def mark_answers_on_image(warped, row_data, selected_answers, answer_key, option
             if selected_idx is not None and row_bubbles[selected_idx] is not None:
                 color = (0, 255, 0) if selected_opt == correct_opt else (0, 0, 255)
                 cv2.drawContours(warped, [row_bubbles[selected_idx]], -1, color, 3)
+                # Add a small dot in center
+                (x, y, w, h) = cv2.boundingRect(row_bubbles[selected_idx])
+                cv2.circle(warped, (x + w//2, y + h//2), 4, color, -1)
                     
     return warped
 

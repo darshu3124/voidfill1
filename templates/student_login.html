@@ -9,6 +9,7 @@
             </div>
             <div class="card-body p-4 p-md-5">
                 <form method="POST">
+                    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
                     <div class="mb-4">
                         <label class="form-label fw-bold">Email Address</label>
                         <input type="email" name="email" class="form-control form-control-lg"
