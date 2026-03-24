@@ -144,6 +144,7 @@ def evaluate_answers(thresh, rows, answer_key):
         bubbled_col = None
         max_fill_ratio = 0
         row_bubbles = [None] * 4 # A, B, C, D
+        marked_cols = []
 
         for c in cnts:
             (x, y, w, h) = cv2.boundingRect(c)
@@ -179,42 +180,57 @@ def evaluate_answers(thresh, rows, answer_key):
                 fill_ratio = total / float(bubble_area) if bubble_area > 0 else 0
                 
                 # Minimum threshold to count as a mark (more robust 20%)
-                if fill_ratio > 0.20 and fill_ratio > max_fill_ratio:
-                    max_fill_ratio = fill_ratio
-                    bubbled_col = col_idx
+                if fill_ratio > 0.20:
+                    marked_cols.append(col_idx)
+                    if fill_ratio > max_fill_ratio:
+                        max_fill_ratio = fill_ratio
+                        bubbled_col = col_idx
 
-        selected_option = options_map.get(bubbled_col)
+        if len(marked_cols) > 1:
+            selected_option = 'INVALID_MULTIPLE'
+        else:
+            selected_option = options_map.get(bubbled_col)
+            
         if question_number in answer_key:
             selected_answers[question_number] = selected_option
             if selected_option == answer_key[question_number]:
                 score += 1
         
-        row_data_for_marking.append((q, row_bubbles))
+        row_data_for_marking.append((q, row_bubbles, marked_cols))
                 
     return score, selected_answers, row_data_for_marking, options_map
 
 def mark_answers_on_image(warped, row_data, selected_answers, answer_key, options_map):
     rev_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
     
-    for (q, row_bubbles) in row_data:
+    for (q, row_bubbles, marked_cols) in row_data:
         question_number = q + 1
         if question_number in answer_key:
             correct_opt = answer_key[question_number]
             correct_idx = rev_map.get(correct_opt)
             selected_opt = selected_answers.get(question_number)
-            selected_idx = rev_map.get(selected_opt)
             
             # Draw correct answer outline (Blue)
             if correct_idx is not None and row_bubbles[correct_idx] is not None:
                 cv2.drawContours(warped, [row_bubbles[correct_idx]], -1, (255, 0, 0), 2)
             
             # Draw student's answer (Green if right, Red if wrong)
-            if selected_idx is not None and row_bubbles[selected_idx] is not None:
-                color = (0, 255, 0) if selected_opt == correct_opt else (0, 0, 255)
-                cv2.drawContours(warped, [row_bubbles[selected_idx]], -1, color, 3)
-                # Add a small dot in center
-                (x, y, w, h) = cv2.boundingRect(row_bubbles[selected_idx])
-                cv2.circle(warped, (x + w//2, y + h//2), 4, color, -1)
+            if selected_opt == 'INVALID_MULTIPLE':
+                for idx in marked_cols:
+                    if row_bubbles[idx] is not None:
+                        color = (0, 0, 255)
+                        cv2.drawContours(warped, [row_bubbles[idx]], -1, color, 3)
+                        # Add a small dot in center
+                        (x, y, w, h) = cv2.boundingRect(row_bubbles[idx])
+                        cv2.circle(warped, (x + w//2, y + h//2), 4, color, -1)
+            else:
+                selected_idx = rev_map.get(selected_opt)
+                if selected_idx is not None and row_bubbles[selected_idx] is not None:
+                    color = (0, 255, 0) if selected_opt == correct_opt else (0, 0, 255)
+                    cv2.drawContours(warped, [row_bubbles[selected_idx]], -1, color, 3)
+                    # Add a small dot in center
+                    (x, y, w, h) = cv2.boundingRect(row_bubbles[selected_idx])
+                    cv2.circle(warped, (x + w//2, y + h//2), 4, color, -1)
                     
     return warped
 

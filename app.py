@@ -8,10 +8,17 @@ from config import Config
 from omr_processor import process_omr
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib.units import inch
 import io
 from utils.otp_generator import generate_otp
 from utils.email_service import send_otp_email, send_result_email
 import socket
+import zipfile
+import tempfile
+import shutil
 import pytz
 from datetime import datetime, timedelta
 
@@ -35,7 +42,7 @@ db = SQLAlchemy(app)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'student_login'
+login_manager.login_view = 'login'
 
 
 # --- DATABASE MODELS ---
@@ -109,23 +116,7 @@ def index():
 
 # --- AUTH ROUTES ---
 
-@app.route('/admin_login', methods=['GET', 'POST'])
-def admin_login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        admin = Admin.query.filter_by(username=username).first()
-        
-        if admin and check_password_hash(admin.password, password):
-            session['admin_id'] = admin.id
-            session['role'] = 'admin'
-            flash('Logged in successfully.', 'success')
-            return redirect(url_for('admin_dashboard'))
-        else:
-            flash('Invalid username or password', 'danger')
-            
-    return render_template('admin_login.html')
+
 
 @app.route('/student_register', methods=['GET', 'POST'])
 def student_register():
@@ -137,7 +128,7 @@ def student_register():
         existing_student = Student.query.filter_by(email=email).first()
         if existing_student and existing_student.verified:
             flash('Email already registered!', 'danger')
-            return redirect(url_for('student_login'))
+            return redirect(url_for('login'))
             
         otp = generate_otp()
         expires = get_ist_now() + timedelta(minutes=5)
@@ -187,24 +178,32 @@ def verify_otp():
                 db.session.commit()
                 session.pop('verify_email', None)
                 flash('Email verified successfully! You can now log in.', 'success')
-                return redirect(url_for('student_login'))
+                return redirect(url_for('login'))
         else:
             flash('Invalid or expired OTP', 'danger')
             
     return render_template('verify_otp.html', email=email)
 
-@app.route('/student_login', methods=['GET', 'POST'])
-def student_login():
+@app.route('/login', methods=['GET', 'POST'])
+def login():
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
         
-        student = Student.query.filter_by(email=email).first()
-        
+        # 1. Check if Admin
+        admin = Admin.query.filter_by(username=username).first()
+        if admin and check_password_hash(admin.password, password):
+            session['admin_id'] = admin.id
+            session['role'] = 'admin'
+            flash('Logged in successfully as Admin.', 'success')
+            return redirect(url_for('admin_dashboard'))
+            
+        # 2. Check if Student
+        student = Student.query.filter((Student.name == username) | (Student.email == username)).first()
         if student and check_password_hash(student.password, password):
             if not student.verified:
                 flash('Please verify your email first.', 'warning')
-                return redirect(url_for('student_login'))
+                return redirect(url_for('login'))
                 
             login_user(student)
             session['role'] = 'student'
@@ -214,15 +213,15 @@ def student_login():
             next_url = request.form.get('next') or request.args.get('next')
             if next_url:
                 from urllib.parse import urlparse
-                # Ensure the url is safe
                 if not urlparse(next_url).netloc:
                     return redirect(next_url)
                     
             return redirect(url_for('student_dashboard'))
-        else:
-            flash('Invalid email or password', 'danger')
             
-    return render_template('student_login.html')
+        flash('Invalid username/email or password', 'danger')
+        
+    return render_template('login.html')
+
 
 @app.route('/logout')
 def logout():
@@ -236,7 +235,7 @@ def logout():
 @app.route('/admin_dashboard', methods=['GET', 'POST'])
 def admin_dashboard():
     if session.get('role') != 'admin':
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('login'))
         
     if request.method == 'POST' and 'question_number' in request.form:
         q_num = int(request.form['question_number'])
@@ -283,26 +282,30 @@ def admin_dashboard():
                             selected_subject_id=selected_subject_id,
                             total_students=total_students,
                             total_evaluations=total_evaluations,
-                            avg_score=avg_score)
+                            avg_score=avg_score,
+                            results=results_list)
 
 @app.route('/admin/answer_key')
 def admin_answer_key():
     if session.get('role') != 'admin':
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('login'))
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/add_subject', methods=['POST'])
 def add_subject():
     if session.get('role') != 'admin':
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('login'))
     
-    name = request.form.get('subject_name')
-    if name:
+    name = request.form.get('subject_name', '').strip()
+    exam = request.form.get('exam_name', '').strip()
+    full_name = f"{name} - {exam}" if exam else name
+    
+    if full_name:
         try:
-            new_subject = Subject(name=name)
+            new_subject = Subject(name=full_name)
             db.session.add(new_subject)
             db.session.commit()
-            flash(f'Subject "{name}" added.', 'success')
+            flash(f'Subject/Exam "{full_name}" added.', 'success')
         except Exception as e:
             db.session.rollback()
             flash(f'Error adding subject: {e}', 'danger')
@@ -329,7 +332,7 @@ def student_dashboard():
 @app.route('/admin/bulk_key', methods=['POST'])
 def bulk_answer_key():
     if session.get('role') != 'admin':
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('login'))
     
     subject_id = request.form.get('subject_id')
     if not subject_id:
@@ -367,7 +370,7 @@ def bulk_answer_key():
 @app.route('/admin/clear_key', methods=['POST'])
 def clear_answer_key():
     if session.get('role') != 'admin':
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('login'))
     
     subject_id = request.form.get('subject_id')
     try:
@@ -384,11 +387,129 @@ def clear_answer_key():
         db.session.rollback()
         flash(f'Error clearing answer key: {e}', 'danger')
     return redirect(url_for('admin_dashboard', subject_id=subject_id))
+def evaluate_single_omr(upload_path, filename, student, subject_id, answer_key):
+    import time
+    processed_filename = f"processed_{filename.rsplit('.', 1)[0]}.jpg"
+    processed_path = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
+    
+    score, total_q, selected, final_path = process_omr(upload_path, answer_key, processed_path)
+    
+    total_questions_in_key = len(answer_key)
+    percentage = (score / total_questions_in_key) * 100 if total_questions_in_key > 0 else 0
+    status = 'Pass' if percentage >= 40 else 'Fail'
+    
+    new_result = Result(
+        student_id=student.id,
+        subject_id=subject_id,
+        score=score,
+        total_questions=total_questions_in_key,
+        uploaded_image=filename,
+        processed_image=processed_filename,
+        percentage=percentage,
+        status=status
+    )
+    db.session.add(new_result)
+    db.session.commit()
+    result_id = new_result.id
+    
+    pdf_filename = f"result_{result_id}_{int(time.time())}.pdf"
+    pdf_path = os.path.join(app.config.get('RESULTS_FOLDER', 'static/results'), pdf_filename)
+    os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=24, alignment=1, spaceAfter=20, textColor=colors.HexColor("#2C3E50"))
+    subtitle_style = ParagraphStyle('SubtitleStyle', parent=styles['Heading2'], fontSize=16, alignment=1, spaceAfter=30, textColor=colors.HexColor("#34495E"))
+    label_style = ParagraphStyle('LabelStyle', parent=styles['Normal'], fontSize=12, fontWeight='bold', textColor=colors.HexColor("#7F8C8D"))
+    value_style = ParagraphStyle('ValueStyle', parent=styles['Normal'], fontSize=12, textColor=colors.HexColor("#2C3E50"))
+
+    logo_path = os.path.join(app.root_path, 'static', 'images', 'logo.png')
+    if os.path.exists(logo_path):
+        try:
+            logo = RLImage(logo_path, width=2*inch, height=1*inch)
+            logo.hAlign = 'CENTER'
+            elements.append(logo)
+        except: pass
+    
+    elements.append(Paragraph("Score Report", title_style))
+    elements.append(Paragraph(f"{new_result.subject_rel.name} Examination", subtitle_style))
+    
+    data = [
+        [Paragraph("Student Name:", label_style), Paragraph(student.name, value_style), 
+         Paragraph("Date:", label_style), Paragraph(new_result.date.strftime('%Y-%m-%d %H:%M'), value_style)],
+    ]
+    t = Table(data, colWidths=[1.5*inch, 2*inch, 1*inch, 2.5*inch])
+    t.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('BOTTOMPADDING', (0,0), (-1,-1), 12)]))
+    elements.append(t)
+    elements.append(Spacer(1, 15))
+    
+    status_color = colors.green if new_result.status == 'Pass' else colors.red
+    results_data = [
+        ["Total Questions", "Correct Answers", "Percentage", "Result Status"],
+        [str(new_result.total_questions), str(new_result.score), f"{new_result.percentage:.2f}%", new_result.status]
+    ]
+    
+    results_table = Table(results_data, colWidths=[1.75*inch, 1.75*inch, 1.75*inch, 1.75*inch])
+    results_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2C3E50")),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 12),
+        ('BOTTOMPADDING', (0,0), (-1,0), 12),
+        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor("#F8F9F9")),
+        ('TEXTCOLOR', (0,-1), (2,-1), colors.black),
+        ('TEXTCOLOR', (3,-1), (3,-1), status_color),
+        ('GRID', (0,0), (-1,-1), 1, colors.HexColor("#BDC3C7")),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,1), (-1,-1), 14),
+        ('TOPPADDING', (0,1), (-1,-1), 15),
+        ('BOTTOMPADDING', (0,1), (-1,-1), 15),
+    ]))
+    elements.append(results_table)
+    elements.append(Spacer(1, 30))
+    
+    performance_text = "Congratulations! You have successfully passed the exam." if new_result.status == "Pass" else "Better luck next time. Focus on the incorrect markings below."
+    elements.append(Paragraph("Evaluation Summary", styles['Heading3']))
+    elements.append(Paragraph(performance_text, styles['Normal']))
+    elements.append(Spacer(1, 20))
+
+    elements.append(Paragraph("Evaluated OMR Sheet", styles['Heading3']))
+    elements.append(Spacer(1, 10))
+    if os.path.exists(processed_path):
+        try:
+            img = RLImage(processed_path, width=6*inch, height=None)
+            img.hAlign = 'CENTER'
+            elements.append(img)
+        except:
+            elements.append(Paragraph("[Image processing failed for PDF display]", styles['Italic']))
+
+    doc.build(elements)
+    
+    with open(pdf_path, 'wb') as f:
+        f.write(buffer.getvalue())
+    
+    new_result.result_pdf = pdf_filename
+    db.session.commit()
+    
+    result_url = url_for('student_view_result', result_id=result_id, _external=True)
+    from urllib.parse import urlparse
+    parsed_url = urlparse(result_url)
+    if parsed_url.hostname in ['127.0.0.1', 'localhost', '0.0.0.0']:
+        lan_ip = get_lan_ip()
+        result_url = result_url.replace(parsed_url.hostname, lan_ip)
+    
+    send_result_email(student.email, student.name, result_url)
+    return result_id
+
 @app.route('/upload_omr', methods=['GET', 'POST'])
 def upload_omr():
     if session.get('role') != 'admin':
         flash('Only admins can upload and evaluate OMR sheets.', 'warning')
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('login'))
         
     students = Student.query.all()
     subjects = Subject.query.all()
@@ -425,86 +546,95 @@ def upload_omr():
                 
             answer_key = {k.question_number: k.correct_option for k in keys}
             
-            processed_filename = f"processed_{filename.rsplit('.', 1)[0]}.jpg"
-            processed_path = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
-            
             try:
-                # Reuse process_omr - it doesn't care about subjects, just takes the dict
-                score, total_q, selected, final_path = process_omr(upload_path, answer_key, processed_path)
-            except Exception as e:
-                flash(f'OMR Processing Error: {str(e)}', 'danger')
-                return redirect(request.url)
-                
-            total_questions_in_key = len(answer_key)
-            percentage = (score / total_questions_in_key) * 100 if total_questions_in_key > 0 else 0
-            status = 'Pass' if percentage >= 40 else 'Fail'
-            
-            try:
-                new_result = Result(
-                    student_id=student_id,
-                    subject_id=subject_id,
-                    score=score,
-                    total_questions=total_questions_in_key,
-                    uploaded_image=filename,
-                    processed_image=processed_filename,
-                    percentage=percentage,
-                    status=status
-                )
-                db.session.add(new_result)
-                db.session.commit()
-                result_id = new_result.id
-                
-                # Generate PDF and notify student
                 student = Student.query.get(student_id)
-                pdf_filename = f"result_{result_id}_{int(time.time())}.pdf"
-                pdf_path = os.path.join(app.config.get('RESULTS_FOLDER', 'static/results'), pdf_filename)
-                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-                
-                buffer = io.BytesIO()
-                p = canvas.Canvas(buffer, pagesize=letter)
-                p.drawString(100, 750, "OMR Sheet Detection and Marking System - Result Report")
-                p.drawString(100, 730, f"Student Name: {student.name}")
-                p.drawString(100, 710, f"Exam Date: {new_result.date.strftime('%Y-%m-%d %H:%M')}")
-                p.drawString(100, 690, f"Marks: {new_result.score} / {new_result.total_questions}")
-                p.drawString(100, 670, f"Percentage: {new_result.percentage:.2f}%")
-                p.drawString(100, 650, f"Status: {new_result.status}")
-                p.showPage()
-                p.save()
-                
-                with open(pdf_path, 'wb') as f:
-                    f.write(buffer.getvalue())
-                
-                new_result.result_pdf = pdf_filename
-                db.session.commit()
-                
-                result_url = url_for('view_result', result_id=result_id, _external=True)
-                
-                # Replace localhost with actual LAN IP for external access
-                from urllib.parse import urlparse
-                parsed_url = urlparse(result_url)
-                if parsed_url.hostname in ['127.0.0.1', 'localhost', '0.0.0.0']:
-                    lan_ip = get_lan_ip()
-                    result_url = result_url.replace(parsed_url.hostname, lan_ip)
-                
-                send_result_email(student.email, student.name, result_url)
-                
+                result_id = evaluate_single_omr(upload_path, filename, student, subject_id, answer_key)
+                flash(f'Successfully evaluated OMR for {student.name}!', 'success')
+                return redirect(url_for('admin_view_result', result_id=result_id))
             except Exception as e:
                 db.session.rollback()
-                flash(f'Database/PDF failure: {e}', 'danger')
+                flash(f'Processing/PDF/DB failure: {e}', 'danger')
                 return redirect(request.url)
-                
-            flash(f'Successfully evaluated OMR for {new_result.student.name} ({new_result.subject_rel.name})!', 'success')
-            return redirect(url_for('view_result', result_id=result_id))
             
         else:
             flash(f'Invalid image type: {file.filename.rsplit(".", 1)[-1]}.', 'danger')
             
     return render_template('upload_omr.html', students=students, subjects=subjects)
 
+@app.route('/batch_upload_omr', methods=['POST'])
+def batch_upload_omr():
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    subject_id = request.form.get('subject_id')
+    if not subject_id:
+        flash('Subject ID is missing.', 'danger')
+        return redirect(url_for('upload_omr'))
+        
+    files = request.files.getlist('batch_images')
+    if not files or files[0].filename == '':
+        flash('No files selected.', 'danger')
+        return redirect(url_for('upload_omr'))
+        
+    keys = AnswerKey.query.filter_by(subject_id=subject_id).all()
+    if not keys:
+        flash('Missing answer key for this subject. Contact admin.', 'danger')
+        return redirect(url_for('upload_omr'))
+        
+    answer_key = {k.question_number: k.correct_option for k in keys}
+    
+    success_count = 0
+    fail_count = 0
+    import time
+    
+    def process_batch_file(file_storage_or_path, is_storage, filename):
+        nonlocal success_count, fail_count
+        base_name = os.path.splitext(os.path.basename(filename))[0]
+        # Match student by roll number (email) or name
+        student = Student.query.filter((Student.email == base_name) | (Student.name == base_name)).first()
+        if not student:
+            print(f"Student not found for file {filename}")
+            fail_count += 1
+            return
+            
+        save_filename = f"{int(time.time())}_{base_name}.jpg"
+        upload_path = os.path.join(app.config['UPLOAD_FOLDER'], save_filename)
+        
+        if is_storage:
+            file_storage_or_path.save(upload_path)
+        else:
+            shutil.copy(file_storage_or_path, upload_path)
+            
+        try:
+            evaluate_single_omr(upload_path, save_filename, student, subject_id, answer_key)
+            success_count += 1
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error processing {filename}: {e}")
+            fail_count += 1
+
+    for f in files:
+        if f.filename.lower().endswith('.zip'):
+            with tempfile.TemporaryDirectory() as tempdir:
+                zip_path = os.path.join(tempdir, "upload.zip")
+                f.save(zip_path)
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(tempdir)
+                for root, dirs, extracted_files in os.walk(tempdir):
+                    for ef in extracted_files:
+                        if allowed_file(ef):
+                            ef_path = os.path.join(root, ef)
+                            process_batch_file(ef_path, False, ef)
+        elif allowed_file(f.filename):
+            process_batch_file(f, True, f.filename)
+            
+    flash(f'Batch processing completed. {success_count} successful, {fail_count} failed.', 'info')
+    return redirect(url_for('upload_omr'))
+
 @app.route('/admin/upload_key_image', methods=['POST'])
 def upload_key_image():
     if session.get('role') != 'admin':
-        return redirect(url_for('admin_login'))
+        return redirect(url_for('login'))
         
     subject_id = request.form.get('subject_id')
     if not subject_id:
@@ -549,7 +679,8 @@ def upload_key_image():
     return redirect(url_for('admin_dashboard', subject_id=subject_id))
 
 
-@app.route('/student/result/<int:result_id>')
+@app.route('/admin/result/<int:result_id>', endpoint='admin_view_result')
+@app.route('/student/result/<int:result_id>', endpoint='student_view_result')
 def view_result(result_id):
     result = Result.query.get_or_404(result_id)
     
@@ -559,7 +690,7 @@ def view_result(result_id):
     if not (is_admin or is_student_owner):
         if not current_user.is_authenticated and not is_admin:
             flash("Please log in to access this page.", "warning")
-            return redirect(url_for('student_login', next=request.url))
+            return redirect(url_for('login', next=request.url))
         flash("You are not authorized to view this result.", "danger")
         return redirect(url_for('student_dashboard') if current_user.is_authenticated else url_for('index'))
         
@@ -576,20 +707,57 @@ def download_pdf(result_id):
         flash("You are not authorized to download this PDF.", "danger")
         return redirect(url_for('student_dashboard') if current_user.is_authenticated else url_for('index'))
     
+    target_view = 'admin_view_result' if is_admin else 'student_view_result'
     if not result.result_pdf:
         flash("PDF not generated.", "danger")
-        return redirect(url_for('view_result', result_id=result_id))
+        return redirect(url_for(target_view, result_id=result_id))
         
     pdf_path = os.path.join(app.config.get('RESULTS_FOLDER', 'static/results'), result.result_pdf)
     if os.path.exists(pdf_path):
         return send_file(pdf_path, as_attachment=True)
     flash("PDF file missing.", "danger")
-    return redirect(url_for('view_result', result_id=result_id))
+    return redirect(url_for(target_view, result_id=result_id))
+
+@app.route('/admin/export_csv/<int:subject_id>')
+def export_subject_csv(subject_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    subject = Subject.query.get_or_404(subject_id)
+    results = Result.query.filter_by(subject_id=subject_id).all()
+    
+    import io
+    import csv
+    from flask import Response
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow(['Student Roll No / Email', 'Student Name', 'Subject', 'Score', 'Total Questions', 'Percentage', 'Status', 'Date'])
+    
+    for r in results:
+        writer.writerow([
+            r.student.email,
+            r.student.name,
+            subject.name,
+            r.score,
+            r.total_questions,
+            f"{r.percentage:.2f}%",
+            r.status,
+            r.date.strftime('%Y-%m-%d %H:%M')
+        ])
+        
+    output.seek(0)
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename=class_report_{subject.name.replace(' ', '_')}.csv"}
+    )
 
 # Error Handling
 @app.errorhandler(413) # File size exceeded
 def request_entity_too_large(error):
-    flash('File size exceeded. Maximum allowed is 5MB.', 'danger')
+    flash('File size exceeded. Maximum allowed is 100MB for batch uploads.', 'danger')
     return redirect(request.referrer or url_for('index')), 413
 
 def future_ai_enhancement():

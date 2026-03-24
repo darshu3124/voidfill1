@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'super_secret_key_void_fill'
@@ -6,7 +9,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join('static', 'uploads')
     PROCESSED_FOLDER = os.path.join('static', 'processed')
-    MAX_CONTENT_LENGTH = 5 * 1024 * 1024 # 5 MB limits
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024 # 100 MB limits
     # Email configuration
     MAIL_SERVER = 'smtp.gmail.com'
     MAIL_PORT = 587

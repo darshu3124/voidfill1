@@ -17,15 +17,15 @@
                             required>
                             <option value="">-- Choose Student --</option>
                             {% for s in students %}
-                            <option value="{{ s.id }}">{{ s.name }}</option>
+                            <option value="{{ s.id }}">{{ s.email }} {% if s.name %}({{ s.name }}){% endif %}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Select Subject</label>
+                        <label class="form-label fw-bold">Select Subject / Exam</label>
                         <select id="subject_id_select" name="subject_id" class="form-select form-select-lg border-2"
                             required>
-                            <option value="">-- Choose Subject --</option>
+                            <option value="">-- Choose Subject / Exam --</option>
                             {% for s in subjects %}
                             <option value="{{ s.id }}">{{ s.name }}</option>
                             {% endfor %}
@@ -57,6 +57,11 @@
                         <button class="nav-link" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera"
                             type="button" onclick="startCamera()">
                             <i class="bi bi-camera-fill"></i> Live Smart Scan
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="batch-tab" data-bs-toggle="tab" data-bs-target="#batch" type="button">
+                            <i class="bi bi-stack"></i> Batch Upload
                         </button>
                     </li>
                 </ul>
@@ -115,6 +120,40 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Batch Upload Tab -->
+                    <div class="tab-pane fade" id="batch" role="tabpanel">
+                        <form id="batchForm" action="{{ url_for('batch_upload_omr') }}" method="POST" enctype="multipart/form-data">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Select Subject / Exam for Batch</label>
+                                <select name="subject_id" class="form-select form-select-lg border-2" required>
+                                    <option value="">-- Choose Subject / Exam --</option>
+                                    {% for s in subjects %}
+                                    <option value="{{ s.id }}">{{ s.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="alert alert-info">
+                                <strong>Important:</strong> Name your files using the student's Roll Number or Username (e.g., <code>BCA23078.jpg</code>). You can upload a <code>.zip</code> file containing multiple sheets, or select multiple image files.
+                            </div>
+                            <div class="mb-4 text-center">
+                                <div class="file-upload-wrapper" onclick="document.getElementById('batch_images').click()">
+                                    <div class="file-upload-design">
+                                        <i class="bi bi-file-earmark-zip fs-1 mb-2"></i>
+                                        <h5 class="mb-1">Select ZIP or Multiple Images</h5>
+                                        <p class="text-dim small mb-0" id="batch-file-name-display">No files chosen</p>
+                                    </div>
+                                    <input type="file" id="batch_images" name="batch_images" accept="image/*,.zip" multiple required style="display: none;" onchange="updateBatchFileName(this)">
+                                </div>
+                            </div>
+                            <div class="d-grid mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg shadow rounded-pill py-3">
+                                    <i class="bi bi-lightning-charge-fill"></i> Process Batch
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
                 </div>
 
             </div>
@@ -209,7 +248,15 @@
         const fileName = input.files[0] ? input.files[0].name : "No file chosen";
         document.getElementById('file-name-display').innerText = fileName;
         document.getElementById('file-name-display').classList.add('text-primary');
-        document.querySelector('.file-upload-wrapper').classList.add('active');
+        document.querySelector('#upload .file-upload-wrapper').classList.add('active');
+    }
+
+    function updateBatchFileName(input) {
+        const fileCount = input.files.length;
+        const text = fileCount === 1 ? input.files[0].name : fileCount + " files chosen";
+        document.getElementById('batch-file-name-display').innerText = text;
+        document.getElementById('batch-file-name-display').classList.add('text-primary');
+        document.querySelector('#batch .file-upload-wrapper').classList.add('active');
     }
 
     // Drag and Drop Logic
