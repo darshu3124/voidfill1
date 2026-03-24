@@ -2,14 +2,16 @@
 venv/
 ENV/
 env/
+.env
 
 # Python cache
 __pycache__/
-*.pyc
+*.py[cod]
 
 # Database
 instance/
 *.db
+*.sqlite3
 
 # Uploaded and Processed images (usually not put in git)
 static/uploads/*
@@ -19,4 +21,19 @@ static/processed/*
 
 # OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
+logs/
+*.log
