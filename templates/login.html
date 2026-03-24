@@ -1,0 +1,166 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="login-wrapper">
+    <div class="login-card animate-fade-in">
+        <div class="text-center mb-4">
+            <div class="logo-circle">
+                <i class="bi bi-shield-lock-fill text-primary"></i>
+            </div>
+            <h2 class="fw-bold login-title">Unified Portal</h2>
+            <p class="login-subtitle">Enter your secure credentials</p>
+        </div>
+
+        <form method="POST">
+            <div class="mb-4">
+                <label
+                    class="form-label text-muted fw-bold small text-uppercase letter-spacing-1 ps-1 mb-2">Username</label>
+                <div class="position-relative">
+                    <i class="bi bi-person-fill input-icon"></i>
+                    <input type="text" name="username" class="form-control premium-input"
+                        placeholder="Enter your username" required autofocus autocomplete="username">
+                </div>
+            </div>
+
+            <div class="mb-5">
+                <label
+                    class="form-label text-muted fw-bold small text-uppercase letter-spacing-1 ps-1 mb-2">Password</label>
+                <div class="position-relative">
+                    <i class="bi bi-key-fill input-icon"></i>
+                    <input type="password" name="password" class="form-control premium-input" placeholder="••••••••"
+                        required autocomplete="current-password">
+                </div>
+            </div>
+
+            <button type="submit" class="btn w-100 premium-btn">
+                <span>Login</span> <i class="bi bi-arrow-right-short ms-1 fs-3"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .login-wrapper {
+        min-height: 65vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .login-card {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        padding: 3.5rem 2.5rem;
+        width: 100%;
+        max-width: 440px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    }
+
+    .logo-circle {
+        width: 75px;
+        height: 75px;
+        background: rgba(56, 189, 248, 0.05);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem auto;
+        font-size: 2.2rem;
+        box-shadow: 0 0 30px rgba(56, 189, 248, 0.15);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .login-title {
+        color: #fff;
+        background: linear-gradient(135deg, #f8fafc, #bae6fd);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.5px;
+    }
+
+    .login-subtitle {
+        color: #94a3b8;
+        font-size: 0.95rem;
+    }
+
+    .premium-input {
+        background: rgba(0, 0, 0, 0.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        color: #e2e8f0 !important;
+        height: 64px !important;
+        padding-left: 3.5rem !important;
+        border-radius: 14px;
+        transition: all 0.3s ease;
+    }
+
+    .premium-input:focus {
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-color: rgba(56, 189, 248, 0.4) !important;
+        box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.1) !important;
+    }
+
+    /* Custom autofill hack for dark themes */
+    .premium-input:-webkit-autofill,
+    .premium-input:-webkit-autofill:hover,
+    .premium-input:-webkit-autofill:focus {
+        -webkit-text-fill-color: #e2e8f0 !important;
+        -webkit-box-shadow: 0 0 0px 1000px #0f172a inset !important;
+        transition: background-color 5000s ease-in-out 0s;
+        border-color: rgba(56, 189, 248, 0.3) !important;
+    }
+
+    .input-icon {
+        position: absolute;
+        top: 50%;
+        left: 1.25rem;
+        transform: translateY(-50%);
+        color: #475569;
+        z-index: 10;
+        font-size: 1.25rem;
+        transition: all 0.3s ease;
+        pointer-events: none;
+    }
+
+    .premium-input:focus~.input-icon,
+    .premium-input:not(:placeholder-shown)~.input-icon {
+        color: #38bdf8;
+    }
+
+    .letter-spacing-1 {
+        letter-spacing: 1px;
+    }
+
+    .premium-btn {
+        background: linear-gradient(135deg, #0284c7, #0ea5e9);
+        border: none;
+        color: white;
+        height: 56px;
+        border-radius: 14px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 20px -10px rgba(14, 165, 233, 0.5);
+    }
+
+    .premium-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 15px 25px -10px rgba(14, 165, 233, 0.7);
+        color: white;
+        background: linear-gradient(135deg, #0369a1, #0284c7);
+    }
+
+    .premium-btn:active {
+        transform: translateY(1px);
+        box-shadow: 0 5px 10px -5px rgba(14, 165, 233, 0.5);
+    }
+</style>
+{% endblock %}

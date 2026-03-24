@@ -1,0 +1,362 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+
+<!-- Top Metrics -->
+<div class="row g-4 mb-4">
+    <!-- Metric 1 -->
+    <div class="col-md-4">
+        <div class="card shadow-lg border-0 premium-stat-card">
+            <div class="card-body p-4 d-flex align-items-center">
+                <div class="icon-circle bg-primary bg-opacity-10 text-primary me-4">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <div>
+                    <h6 class="text-uppercase text-muted fw-bold small letter-spacing-1 mb-1">Total Students</h6>
+                    <h2 class="fw-bold mb-0 text-white">{{ total_students }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Metric 2 -->
+    <div class="col-md-4">
+        <div class="card shadow-lg border-0 premium-stat-card">
+            <div class="card-body p-4 d-flex align-items-center">
+                <div class="icon-circle bg-success bg-opacity-10 text-success me-4">
+                    <i class="bi bi-file-earmark-check"></i>
+                </div>
+                <div>
+                    <h6 class="text-uppercase text-muted fw-bold small letter-spacing-1 mb-1">Total Evaluations</h6>
+                    <h2 class="fw-bold mb-0 text-white">{{ total_evaluations }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Metric 3 -->
+    <div class="col-md-4">
+        <div class="card shadow-lg border-0 premium-stat-card">
+            <div class="card-body p-4 d-flex align-items-center">
+                <div class="icon-circle bg-warning bg-opacity-10 text-warning me-4">
+                    <i class="bi bi-graph-up"></i>
+                </div>
+                <div>
+                    <h6 class="text-uppercase text-muted fw-bold small letter-spacing-1 mb-1">Avg Performance</h6>
+                    <h2 class="fw-bold mb-0 text-white">{{ "%.1f"|format(avg_score) }}%</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Panel (Expands when no subject, collapsed when subject active) -->
+    <div class="{% if selected_subject_id %}col-lg-4{% else %}col-12{% endif %}">
+        <div class="row g-4">
+            
+            <!-- Create Subject Card -->
+            <div class="{% if selected_subject_id %}col-12{% else %}col-md-6{% endif %}">
+                <div class="card shadow-lg border-0 bg-glass-dark h-100 p-2">
+                    <div class="card-header border-0 bg-transparent text-white pt-3 pb-0">
+                        <h5 class="fw-bold"><i class="bi bi-folder-plus text-primary me-2"></i> Create Folder</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ url_for('add_subject') }}" method="POST">
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Subject Name</label>
+                                <input type="text" name="subject_name" class="form-control premium-input border-0 shadow-sm" placeholder="e.g. Mathematics" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Exam / Term</label>
+                                <input type="text" name="exam_name" class="form-control premium-input border-0 shadow-sm" placeholder="e.g. Term 1">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 fw-bold premium-btn rounded-3 shadow-sm">
+                                <i class="bi bi-plus-circle me-1"></i> Build Directory
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Select Subject Card -->
+            <div class="{% if selected_subject_id %}col-12{% else %}col-md-6{% endif %}">
+                <div class="card shadow-lg border-0 bg-glass-dark h-100 p-2">
+                    <div class="card-header border-0 bg-transparent text-white pt-3 pb-0">
+                        <h5 class="fw-bold"><i class="bi bi-folder2-open text-info me-2"></i> View Database</h5>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <p class="text-muted small mb-4">Choose an existing subject folder to securely view or edit its answer keys and analytical exports.</p>
+                        <form id="subjectFilterForm" method="GET" class="mt-auto">
+                            <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Target Subject</label>
+                            <select name="subject_id" class="form-select form-select-lg premium-input border-0 shadow-sm bg-dark" onchange="this.form.submit()">
+                                <option value="">-- Choose Context --</option>
+                                {% for s in subjects %}
+                                <option value="{{ s.id }}" {% if selected_subject_id==s.id %}selected{% endif %}>{{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            {% if selected_subject_id %}
+            <!-- Bulk Add Sequence -->
+            <div class="col-12">
+                <div class="card shadow-lg border-0 bg-glass-dark p-2 border-primary border-top border-3">
+                    <div class="card-header border-0 bg-transparent text-white pt-3 pb-0">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Quick Injection</h6>
+                    </div>
+                    <div class="card-body pb-2">
+                        <form action="{{ url_for('bulk_answer_key') }}" method="POST">
+                            <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+                            <div class="row g-2 mb-3">
+                                <div class="col-5">
+                                    <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Start Q</label>
+                                    <input type="number" name="start_question" value="1" min="1" class="form-control premium-input border-0 text-center shadow-sm" required>
+                                </div>
+                                <div class="col-7">
+                                    <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Sequence</label>
+                                    <input type="text" name="bulk_answers" class="form-control premium-input border-0 text-uppercase shadow-sm" placeholder="e.g. ABC..." required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100 fw-bold rounded-3 shadow-sm text-dark hover-pop">
+                                <i class="bi bi-save2-fill me-1"></i> Save Logic
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <!-- Live Answer Key View Panel -->
+    {% if selected_subject_id %}
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0 bg-glass-dark h-100 position-relative overflow-hidden">
+            <div class="card-header border-0 bg-transparent border-bottom border-light border-opacity-10 py-4 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <h4 class="fw-bold text-white mb-0"><i class="bi bi-grid-3x3-gap-fill text-success me-2"></i> Live Database</h4>
+                
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ url_for('export_subject_csv', subject_id=selected_subject_id) }}" class="btn btn-outline-success btn-sm rounded-pill px-3 shadow-sm hover-pop">
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Export Data
+                    </a>
+                    <form action="{{ url_for('clear_answer_key') }}" method="POST" class="d-inline m-0">
+                        <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm hover-pop" {% if keys|length==0 %}disabled{% endif %} onclick="return confirm('Clear ALL answers for this subject?')">
+                            <i class="bi bi-trash-fill me-1"></i> Clear
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card-body p-4" style="max-height: 550px; overflow-y: auto;">
+                <div class="row g-3">
+                    {% for key in keys %}
+                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                        <div class="answer-bubble-card p-3 text-center shadow">
+                            <div class="q-num text-muted small fw-bold text-uppercase letter-spacing-1 mb-2 border-bottom border-light border-opacity-10 pb-2">Q{{ key.question_number }}</div>
+                            <div class="ans-val fw-bold text-white fs-4">{{ key.correct_option }}</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="col-12 py-5 text-center text-muted">
+                        <i class="bi bi-clipboard2-x text-warning opacity-50 mb-4" style="font-size: 4rem;"></i>
+                        <h4 class="fw-bold text-light">Matrix Empty</h4>
+                        <p class="text-dim">Use the Quick Injection panel to instantly populate the answer core.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer border-0 bg-transparent text-center py-4 border-top border-light border-opacity-10">
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-4 py-2 fs-6 fw-bold shadow-sm">
+                    Total Parsed: {{ keys|length }}
+                </span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent Evaluations Row -->
+<div class="row mt-5 mb-5">
+    <div class="col-12">
+        <div class="card shadow-lg border-0 bg-glass-dark">
+            <div class="card-header border-0 bg-transparent text-white pt-4 pb-3 px-4 d-flex flex-wrap justify-content-between align-items-center border-bottom border-light border-opacity-10">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history text-info me-2"></i> Recent Scanner Logs</h5>
+                <a href="{{ url_for('upload_omr') }}" class="btn btn-primary btn-sm rounded-pill px-4 shadow hover-pop fw-bold">
+                    <i class="bi bi-upc-scan me-1"></i> Scan Next
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover table-borderless align-middle mb-0 custom-table">
+                        <thead class="bg-black bg-opacity-25 text-muted small text-uppercase letter-spacing-1">
+                            <tr>
+                                <th class="ps-4 py-3">Timestamp</th>
+                                <th class="py-3">Identifier</th>
+                                <th class="py-3">Context</th>
+                                <th class="py-3">Vector Score</th>
+                                <th class="py-3">Result</th>
+                                <th class="text-end pe-4 py-3">Access</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in results[:5]|reverse %}
+                            <tr class="border-bottom border-light border-opacity-10">
+                                <td class="ps-4 small text-muted font-monospace">{{ r.date.strftime('%d %b, %H:%M') }}</td>
+                                <td>
+                                    <div class="fw-bold text-white fs-6">{{ r.student.email }}</div>
+                                    {% if r.student.name %}<div class="text-muted small">{{ r.student.name }}</div>{% endif %}
+                                </td>
+                                <td><span class="badge bg-secondary bg-opacity-25 text-light border border-secondary border-opacity-50 px-2 py-1">{{ r.subject_rel.name }}</span></td>
+                                <td>
+                                    <div class="fw-bold text-white">{{ r.score }} / {{ r.total_questions }}</div>
+                                    <div class="text-info small fw-bold">{{ "%.1f"|format(r.percentage) }}%</div>
+                                </td>
+                                <td>
+                                    {% if r.status == 'Pass' %}
+                                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 rounded-pill px-3 py-1 fw-bold"><i class="bi bi-shield-check me-1"></i> PASS</span>
+                                    {% else %}
+                                    <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50 rounded-pill px-3 py-1 fw-bold"><i class="bi bi-shield-x me-1"></i> FAIL</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group shadow-sm">
+                                        <a href="{{ url_for('admin_view_result', result_id=r.id) }}" class="btn btn-sm btn-dark border-light border-opacity-10 action-btn" data-bs-toggle="tooltip" title="Inspect"><i class="bi bi-eye"></i></a>
+                                        <a href="{{ url_for('download_pdf', result_id=r.id) }}" class="btn btn-sm btn-dark border-light border-opacity-10 text-danger action-btn-danger" data-bs-toggle="tooltip" title="Print Log"><i class="bi bi-file-pdf-fill"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-5">
+                                    <div class="text-muted mb-3"><i class="bi bi-inbox fs-1 opacity-50"></i></div>
+                                    <h5 class="fw-bold text-light">No Logs Found</h5>
+                                    <p class="small text-dim">Feed an OMR sheet into the scanner to initialize tracking.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% if results|length > 5%}
+            <div class="card-footer bg-transparent border-0 text-center py-3">
+                 <button class="btn btn-link text-info text-decoration-none shadow-none btn-sm fw-bold">View full archive <i class="bi bi-arrow-right"></i></button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .letter-spacing-1 {
+        letter-spacing: 1px;
+    }
+    
+    .premium-stat-card {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 18px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .premium-stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.3) !important;
+    }
+
+    .icon-circle {
+        width: 65px;
+        height: 65px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+    }
+
+    .bg-glass-dark {
+        background: rgba(15, 23, 42, 0.6) !important;
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 18px;
+    }
+
+    .premium-input {
+        background: rgba(255, 255, 255, 0.03) !important;
+        color: #fff !important;
+        height: 50px;
+        transition: all 0.3s ease;
+        border-radius: 10px;
+    }
+    
+    .premium-input:focus {
+        background: rgba(255, 255, 255, 0.08) !important;
+        box-shadow: inset 0 0 0 1px var(--primary-glow) !important;
+    }
+    
+    select.premium-input option {
+        background: #0f172a;
+        color: #fff;
+    }
+    
+    .hover-pop {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hover-pop:hover {
+        transform: translateY(-2px);
+    }
+    
+    .premium-btn {
+        transition: all 0.3s ease;
+        height: 50px;
+    }
+    .premium-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px -5px rgba(56, 189, 248, 0.6) !important;
+    }
+
+    .answer-bubble-card {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.2s ease;
+    }
+
+    .answer-bubble-card:hover {
+        transform: scale(1.05) translateY(-5px);
+        border-color: var(--primary-glow);
+        background: rgba(56, 189, 248, 0.05);
+        box-shadow: 0 10px 20px rgba(56, 189, 248, 0.2) !important;
+    }
+
+    .action-btn {
+        transition: all 0.2s ease;
+    }
+    .action-btn:hover {
+        background: rgba(56, 189, 248, 0.15);
+        color: var(--primary-glow);
+        border-color: transparent !important;
+    }
+    
+    .action-btn-danger:hover {
+        background: rgba(220, 53, 69, 0.15);
+        color: #ff4d4d !important;
+        border-color: transparent !important;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    })
+</script>
+
+{% endblock %}
