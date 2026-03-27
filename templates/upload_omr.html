@@ -60,7 +60,8 @@
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link" id="batch-tab" data-bs-toggle="tab" data-bs-target="#batch" type="button">
+                        <button class="nav-link" id="batch-tab" data-bs-toggle="tab" data-bs-target="#batch"
+                            type="button">
                             <i class="bi bi-stack"></i> Batch Upload
                         </button>
                     </li>
@@ -73,16 +74,24 @@
                             <input type="hidden" name="subject_id" class="target_subject_id">
 
                             <div class="mb-4 text-center">
-                                <div class="file-upload-wrapper" onclick="document.getElementById('omr_image').click()">
+                                <div class="file-upload-wrapper mb-3" onclick="document.getElementById('omr_image').click()">
                                     <div class="file-upload-design">
                                         <i class="bi bi-cloud-arrow-up fs-1 mb-2"></i>
                                         <h5 class="mb-1">Click to Select OMR Sheet</h5>
                                         <p class="text-dim small mb-0" id="file-name-display">No file chosen</p>
                                     </div>
                                     <input type="file" id="omr_image" name="omr_image" accept="image/*"
-                                        capture="environment" required style="display: none;"
+                                        required style="display: none;"
                                         onchange="updateFileName(this)">
                                 </div>
+                                
+                                <!-- Dedicated Mobile Camera Button -->
+                                <button type="button" class="btn btn-outline-info w-100 rounded-3 py-2 d-md-none" onclick="document.getElementById('omr_image_camera').click()">
+                                    <i class="bi bi-camera"></i> Take Photo with Mobile Camera
+                                </button>
+                                <input type="file" id="omr_image_camera" name="omr_image_camera_dummy" accept="image/*"
+                                    capture="environment" style="display: none;"
+                                    onchange="handleNativeCaptureOnUpload(this)">
                             </div>
 
                             <div class="d-grid mt-4">
@@ -97,17 +106,45 @@
                     <div class="tab-pane fade" id="camera" role="tabpanel">
                         <div class="text-center">
                             <div id="camera_container" class="bg-dark rounded overflow-hidden mb-3"
-                                style="position: relative; min-height: 400px;">
-                                <video id="video" width="100%" height="auto" autoplay playsinline
+                                style="position: relative; min-height: 400px; display: flex; align-items: center; justify-content: center;">
+                                <video id="video" width="100%" height="auto" autoplay playsinline muted
                                     class="rounded"></video>
                                 <canvas id="canvas" style="display:none;"></canvas>
+                                
+                                <!-- Insecure Context Warning (Visible if HTTP) -->
+                                <div id="insecure_warning" class="p-3 text-center" style="display: none; z-index: 20; color: white; background: rgba(0,0,0,0.8); border-radius: 15px;">
+                                    <i class="bi bi-shield-lock-fill fs-2 text-warning mb-2 d-block"></i>
+                                    <h6 class="mb-2">Secure Context Required (HTTPS)</h6>
+                                    <p class="x-small text-dim mb-3" style="font-size: 0.85rem; line-height: 1.4;">
+                                        Modern browsers block camera access on <strong>HTTP</strong> links (like your local IP). 
+                                        To enable <strong>Live Smart Scan</strong>, you must use a secure link.
+                                    </p>
+                                    
+                                    {% if ngrok_url %}
+                                    <div class="d-flex flex-column align-items-center mb-3">
+                                        <div id="qrcode" class="p-2 bg-white rounded shadow-sm mb-2"></div>
+                                        <a href="{{ ngrok_url }}" class="btn btn-primary btn-sm rounded-pill px-4" target="_blank">
+                                            <i class="bi bi-box-arrow-up-right me-1"></i> Open Secure Scan Link
+                                        </a>
+                                        <p class="mt-2 text-warning" style="font-size: 0.7rem;">Scan this QR code with your phone!</p>
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-warning py-2 mb-3" style="font-size: 0.75rem;">
+                                        <i class="bi bi-terminal"></i> <strong>Admin Fix:</strong> Run <code>ngrok http 5000</code> in your terminal to get a secure HTTPS link.
+                                    </div>
+                                    <button class="btn btn-warning btn-sm" onclick="location.reload()">
+                                        <i class="bi bi-arrow-clockwise"></i> Refresh Status
+                                    </button>
+                                    {% endif %}
+                                </div>
+
                                 <!-- Moving Scan Line Animation -->
                                 <div class="scan-line"></div>
                                 <!-- Overlay for alignment -->
-                                <div
-                                    style="position: absolute; top: 10%; left: 10%; right: 10%; bottom: 10%; border: 2px dashed rgba(0,255,0,0.5); pointer-events: none; border-radius: 15px;">
+                                <div id="camera_overlay"
+                                    style="position: absolute; top: 10%; left: 10%; right: 10%; bottom: 10%; border: 2px dashed rgba(56, 189, 248, 0.5); pointer-events: none; border-radius: 15px; z-index: 5;">
                                     <span class="text-white small"
-                                        style="background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; position: absolute; top: -15px; left: 50%; transform: translateX(-50%);">Align
+                                        style="background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; position: absolute; top: -15px; left: 50%; transform: translateX(-50%); white-space: nowrap;">Align
                                         Sheet Within Frame</span>
                                 </div>
                             </div>
@@ -115,6 +152,12 @@
                             <div class="d-grid gap-2">
                                 <button id="snap" class="btn btn-primary btn-lg"><i class="bi bi-circle-fill"></i>
                                     Capture & Evaluate</button>
+                                
+                                <button id="native_scan_btn" class="btn btn-warning border-0 text-dark fw-bold" style="display: none;" onclick="document.getElementById('omr_image_native').click()">
+                                    <i class="bi bi-camera"></i> Open Native Camera (Fix)
+                                </button>
+                                <input type="file" id="omr_image_native" accept="image/*" capture="environment" style="display: none;" onchange="handleNativeCapture(this)">
+
                                 <button class="btn btn-outline-secondary btn-sm" onclick="stopCamera()">Stop
                                     Camera</button>
                             </div>
@@ -123,7 +166,8 @@
 
                     <!-- Batch Upload Tab -->
                     <div class="tab-pane fade" id="batch" role="tabpanel">
-                        <form id="batchForm" action="{{ url_for('batch_upload_omr') }}" method="POST" enctype="multipart/form-data">
+                        <form id="batchForm" action="{{ url_for('batch_upload_omr') }}" method="POST"
+                            enctype="multipart/form-data">
                             <div class="mb-4">
                                 <label class="form-label fw-bold">Select Subject / Exam for Batch</label>
                                 <select name="subject_id" class="form-select form-select-lg border-2" required>
@@ -134,16 +178,20 @@
                                 </select>
                             </div>
                             <div class="alert alert-info">
-                                <strong>Important:</strong> Name your files using the student's Roll Number or Username (e.g., <code>BCA23078.jpg</code>). You can upload a <code>.zip</code> file containing multiple sheets, or select multiple image files.
+                                <strong>Important:</strong> Name your files using the student's Roll Number or Username
+                                (e.g., <code>BCA23078.jpg</code>). You can upload a <code>.zip</code> file containing
+                                multiple sheets, or select multiple image files.
                             </div>
                             <div class="mb-4 text-center">
-                                <div class="file-upload-wrapper" onclick="document.getElementById('batch_images').click()">
+                                <div class="file-upload-wrapper"
+                                    onclick="document.getElementById('batch_images').click()">
                                     <div class="file-upload-design">
                                         <i class="bi bi-file-earmark-zip fs-1 mb-2"></i>
                                         <h5 class="mb-1">Select ZIP or Multiple Images</h5>
                                         <p class="text-dim small mb-0" id="batch-file-name-display">No files chosen</p>
                                     </div>
-                                    <input type="file" id="batch_images" name="batch_images" accept="image/*,.zip" multiple required style="display: none;" onchange="updateBatchFileName(this)">
+                                    <input type="file" id="batch_images" name="batch_images" accept="image/*,.zip"
+                                        multiple required style="display: none;" onchange="updateBatchFileName(this)">
                                 </div>
                             </div>
                             <div class="d-grid mt-4">
@@ -186,13 +234,104 @@
     subjectSelect.addEventListener('change', syncIds);
 
     async function startCamera() {
+        const warning = document.getElementById('insecure_warning');
+        const overlay = document.getElementById('camera_overlay');
+        const snapBtn = document.getElementById('snap');
+        const nativeBtn = document.getElementById('native_scan_btn');
+        const scanLine = document.querySelector('.scan-line');
+
+        const isSecure = window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (!isSecure || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            video.style.display = 'none';
+            overlay.style.display = 'none';
+            snapBtn.style.display = 'none';
+            scanLine.style.display = 'none';
+            warning.style.display = 'block';
+            nativeBtn.style.display = 'block';
+            return;
+        }
+
         try {
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+                video: { 
+                    facingMode: "environment", 
+                    width: { ideal: 1280 }, 
+                    height: { ideal: 720 } 
+                }
             });
             video.srcObject = stream;
+            video.style.display = 'block';
+            overlay.style.display = 'block';
+            snapBtn.style.display = 'block';
+            scanLine.style.display = 'block';
+            warning.style.display = 'none';
+            nativeBtn.style.display = 'none';
         } catch (err) {
-            alert("Error accessing camera: " + err);
+            video.style.display = 'none';
+            overlay.style.display = 'none';
+            snapBtn.style.display = 'none';
+            scanLine.style.display = 'none';
+            warning.innerHTML = `<i class="bi bi-exclamation-triangle fs-1 text-danger mb-3"></i><h5 class="text-white">Camera Error</h5><p class="small text-dim">Please ensure camera permissions are granted.</p>`;
+            warning.style.display = 'block';
+            nativeBtn.style.display = 'block';
+        }
+    }
+
+    function handleNativeCapture(input) {
+        if (!input.files || !input.files[0]) return;
+        const studentId = studentSelect.value;
+        const subjectId = subjectSelect.value;
+        if (!studentId || !subjectId) { alert("Please select student and subject first!"); return; }
+
+        const formData = new FormData();
+        formData.append('omr_image', input.files[0]);
+        formData.append('student_id', studentId);
+        formData.append('subject_id', subjectId);
+
+        const nativeBtn = document.getElementById('native_scan_btn');
+        if (nativeBtn) {
+            nativeBtn.disabled = true;
+            nativeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing OMR...';
+        }
+
+        fetch('{{ url_for("upload_omr") }}', { 
+            method: 'POST', 
+            body: formData 
+        }).then(response => {
+            if (response.redirected) window.location.href = response.url;
+            else { 
+                alert("Evaluation failed. Make sure the OMR sheet is well-aligned and lit."); 
+                if (nativeBtn) {
+                    nativeBtn.disabled = false;
+                    nativeBtn.innerHTML = '<i class="bi bi-camera"></i> Open Native Camera (Fix)';
+                }
+            }
+        }).catch(err => {
+            alert("Error connecting to server. Check your connection.");
+            if (nativeBtn) {
+                nativeBtn.disabled = false;
+                nativeBtn.innerHTML = '<i class="bi bi-camera"></i> Open Native Camera (Fix)';
+            }
+        });
+    }
+
+    function handleNativeCaptureOnUpload(input) {
+        if (!input.files || !input.files[0]) return;
+        
+        // Sync to the main upload form input
+        const mainInput = document.getElementById('omr_image');
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(input.files[0]);
+        mainInput.files = dataTransfer.files;
+        
+        updateFileName(mainInput);
+        
+        // Auto-submit form if selections are made
+        if (studentSelect.value && subjectSelect.value) {
+            document.getElementById('uploadForm').requestSubmit();
+        } else {
+            alert("Photo captured! Now select student and subject, then click Evaluate.");
         }
     }
 
@@ -286,6 +425,18 @@
         fileInput.files = files;
         updateFileName(fileInput);
     }, false);
+
+    // Initialize QR Code if URL is available
+    {% if ngrok_url %}
+    new QRCode(document.getElementById("qrcode"), {
+        text: "{{ ngrok_url }}",
+        width: 110,
+        height: 110,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+    });
+    {% endif %}
 </script>
 
 <style>

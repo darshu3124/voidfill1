@@ -35,6 +35,26 @@ def get_lan_ip():
     except Exception:
         return '127.0.0.1'
 
+def get_ngrok_url():
+    """Tries to fetch the active ngrok tunnel URL from the local API."""
+    import urllib.request, json
+    try:
+        # Check standard ngrok API
+        with urllib.request.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=0.8) as response:
+            data = json.load(response)
+            if data['tunnels']:
+                return data['tunnels'][0]['public_url']
+    except:
+        pass
+        
+    try:
+        # Check secondary/alternative ngrok API if available
+        # Some versions or setups might differ slightly
+        pass
+    except:
+        pass
+    return None
+
 app = Flask(__name__)
 app.config.from_object(Config)
 
@@ -481,11 +501,29 @@ def evaluate_single_omr(upload_path, filename, student, subject_id, answer_key):
     elements.append(Spacer(1, 10))
     if os.path.exists(processed_path):
         try:
-            img = RLImage(processed_path, width=6*inch, height=None)
+            # Open image to get aspect ratio
+            from PIL import Image as PILImage
+            with PILImage.open(processed_path) as pil_img:
+                img_w, img_h = pil_img.size
+                aspect = img_h / float(img_w)
+            
+            # Constraints: Max width 6.5 inches, Max height 7.5 inches (to leave room for headers)
+            max_w = 6.5 * inch
+            max_h = 7.5 * inch
+            
+            w = max_w
+            h = w * aspect
+            
+            if h > max_h:
+                h = max_h
+                w = h / aspect
+                
+            img = RLImage(processed_path, width=w, height=h)
             img.hAlign = 'CENTER'
             elements.append(img)
-        except:
-            elements.append(Paragraph("[Image processing failed for PDF display]", styles['Italic']))
+        except Exception as img_err:
+            print(f"PDF Image Error: {img_err}")
+            elements.append(Paragraph(f"[Image display error: {img_err}]", styles['Italic']))
 
     doc.build(elements)
     
@@ -559,7 +597,7 @@ def upload_omr():
         else:
             flash(f'Invalid image type: {file.filename.rsplit(".", 1)[-1]}.', 'danger')
             
-    return render_template('upload_omr.html', students=students, subjects=subjects)
+    return render_template('upload_omr.html', students=students, subjects=subjects, ngrok_url=get_ngrok_url())
 
 @app.route('/batch_upload_omr', methods=['POST'])
 def batch_upload_omr():
@@ -772,4 +810,23 @@ if __name__ == '__main__':
             admin = Admin(username='admin', password=hashed_pw)
             db.session.add(admin)
             db.session.commit()
-    app.run(host='0.0.0.0', debug=True)
+    
+    lan_ip = get_lan_ip()
+    ngrok_url = get_ngrok_url()
+    
+    print("\n" + "="*50)
+    print("🚀 OMR SYSTEM - MOBILE ACCESS GUIDE")
+    print("="*50)
+    print(f"1. LAN ACCESS (HTTP): http://{lan_ip}:5000")
+    print("   (Good for standard uploads, but no live scanner)")
+    
+    if ngrok_url:
+        print(f"2. SECURE ACCESS (HTTPS): {ngrok_url}")
+        print("   (RECOMMENDED - Use this for Live OMR Scanning on phone!)")
+    else:
+        print("2. SECURE ACCESS (HTTPS): NOT ACTIVE")
+        print("   -> Tip: Run 'ngrok http 5000' in a new terminal to enable")
+        print("      the Live Camera Scanner on your phone.")
+    print("="*50 + "\n")
+
+    app.run(host='0.0.0.0', port=5000, debug=True)

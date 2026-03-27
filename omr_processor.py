@@ -74,13 +74,22 @@ def perspective_transform(original, contour):
     return warped
 
 def threshold_image(warped_gray):
-    # Otsu's thresholding
-    thresh = cv2.threshold(warped_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-    
-    # Clean up small noise with morphology
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    # Apply a subtle blur to handle scan jitter without losing bubble definition
+    blurred = cv2.GaussianBlur(warped_gray, (3, 3), 0)
+
+    # Adaptive Thresholding with a slightly larger block size for better bubble isolation
+    thresh = cv2.adaptiveThreshold(
+        blurred, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        41, 10
+    )
+
+    # Morphological operations to clean and fill bubbles
+    kernel = np.ones((3, 3), np.uint8)
     thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-    
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
     return thresh
 
 def detect_bubbles(thresh):
@@ -98,7 +107,7 @@ def detect_bubbles(thresh):
         solidity = area / float(bbox_area) if bbox_area > 0 else 0
         
         # Bubbles and question numbers are usually small chunks
-        if 8 <= w <= 120 and 8 <= h <= 120 and 0.4 <= ar <= 2.5 and solidity > 0.35:
+        if 15 <= w <= 80 and 15 <= h <= 80 and 0.7 <= ar <= 1.4 and solidity > 0.4:
             questionCnts.append(c)
 
     if len(questionCnts) == 0:
@@ -132,83 +141,105 @@ def evaluate_answers(thresh, rows, answer_key):
     selected_answers = {}
     options_map = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
     
-    # Use the full width of the 'thresh' image (the warped box) to define vertical zones.
-    # This prevents misalignment if a bubble (like the Q.No text) is not detected in a row.
     warped_width = thresh.shape[1]
     row_data_for_marking = []
 
-    for (q, cnts) in enumerate(rows):
-        question_number = q + 1
-        
-        # Track detections in this row
-        bubbled_col = None
-        max_fill_ratio = 0
-        row_bubbles = [None] * 4 # A, B, C, D
-        marked_cols = []
+    # Map for question columns (X-ranges for each of the 3 blocks)
+    # Block 1: 1-20, Block 2: 21-40, Block 3: 41-50
+    col_blocks = [
+        (0.00, 0.33, 0),    # Block 1
+        (0.33, 0.66, 20),   # Block 2 (offset 20)
+        (0.66, 1.00, 40)    # Block 3 (offset 40)
+    ]
 
+    for (r_idx, cnts) in enumerate(rows):
+        # Each 'row' can contain bubbles from multiple question blocks
+        # We group bubbles in this row by their block
+        block_bubbles = [[] for _ in range(3)]
+        
         for c in cnts:
             (x, y, w, h) = cv2.boundingRect(c)
             center_x = x + (w / 2)
+            rel_x = center_x / float(warped_width)
             
-            # Use the global warped box width for mapping
-            relative_x = center_x / float(warped_width)
-            
-            # Column mapping (assuming the 5-column layout)
-            # 0.0-0.2: QNo, 0.2-0.4: A, 0.4-0.6: B, 0.6-0.8: C, 0.8-1.0: D
-            if relative_x < 0.22:
-                col_idx = -1 # Question Number
-            elif relative_x < 0.42:
-                col_idx = 0 # A
-            elif relative_x < 0.62:
-                col_idx = 1 # B
-            elif relative_x < 0.82:
-                col_idx = 2 # C
-            else:
-                col_idx = 3 # D
-            
-            if col_idx >= 0:
-                row_bubbles[col_idx] = c
-                
-                # Check fill level
-                mask = np.zeros(thresh.shape, dtype="uint8")
-                cv2.drawContours(mask, [c], -1, 255, -1)
-                mask = cv2.bitwise_and(thresh, thresh, mask=mask)
-                total = cv2.countNonZero(mask)
-                
-                # Calculate fill ratio relative to bubble area
-                bubble_area = cv2.contourArea(c)
-                fill_ratio = total / float(bubble_area) if bubble_area > 0 else 0
-                
-                # Minimum threshold to count as a mark (more robust 20%)
-                if fill_ratio > 0.20:
-                    marked_cols.append(col_idx)
-                    if fill_ratio > max_fill_ratio:
-                        max_fill_ratio = fill_ratio
-                        bubbled_col = col_idx
+            for b_idx, (start, end, offset) in enumerate(col_blocks):
+                if start <= rel_x < end:
+                    block_bubbles[b_idx].append((rel_x, c))
+                    break
 
-        if len(marked_cols) > 1:
-            selected_option = 'INVALID_MULTIPLE'
-        else:
-            selected_option = options_map.get(bubbled_col)
+        # Now evaluate each block in this row as a separate question
+        for b_idx, bubbles in enumerate(block_bubbles):
+            if not bubbles:
+                continue
             
-        if question_number in answer_key:
-            selected_answers[question_number] = selected_option
-            if selected_option == answer_key[question_number]:
-                score += 1
-        
-        row_data_for_marking.append((q, row_bubbles, marked_cols))
+            # Sort bubbles in this block by X
+            bubbles.sort(key=lambda x: x[0])
+            rel_start, rel_end, offset = col_blocks[b_idx]
+            
+            # Question number is row index + 1 + offset
+            # But wait: Block 3 only has 10 rows? Block 1 & 2 have 20?
+            # From the image: Row 1-10 have 3 blocks, Row 11-20 have 2 blocks.
+            # So if r_idx < 10, all 3 blocks exist. If 10 <= r_idx < 20, only block 0 and 1 exist.
+            q_num = r_idx + 1 + offset
+            
+            # Sanity check for q_num (Max 50)
+            if q_num > 50: continue
+            
+            # In each question block, we expect: [QNo, A, B, C, D]
+            # Width of one block is roughly 0.33. 
+            # We map relative X within the block (0.0 to 1.0)
+            row_q_bubbles = [None] * 4 # A, B, C, D
+            marked_cols = []
+            max_fill = 0
+            best_col = None
+
+            for rel_x, c in bubbles:
+                # Normalized X within this block
+                x_in_block = (rel_x - rel_start) / (rel_end - rel_start)
+                
+                # Column mapping within block
+                if x_in_block < 0.22: col_idx = -1 # Question Number
+                elif x_in_block < 0.42: col_idx = 0 # A
+                elif x_in_block < 0.62: col_idx = 1 # B
+                elif x_in_block < 0.82: col_idx = 2 # C
+                else: col_idx = 3 # D
+                
+                if col_idx >= 0:
+                    row_q_bubbles[col_idx] = c
+                    # Check fill
+                    mask = np.zeros(thresh.shape, dtype="uint8")
+                    cv2.drawContours(mask, [c], -1, 255, -1)
+                    mask = cv2.bitwise_and(thresh, thresh, mask=mask)
+                    total = cv2.countNonZero(mask)
+                    area = cv2.contourArea(c)
+                    fill = total / float(area) if area > 0 else 0
+                    
+                    if fill > 0.35: # Count as mark
+                        marked_cols.append(col_idx)
+                        if fill > max_fill:
+                            max_fill = fill
+                            best_col = col_idx
+
+            sel_opt = 'INVALID_MULTIPLE' if len(marked_cols) > 1 else options_map.get(best_col)
+            
+            if q_num in answer_key:
+                selected_answers[q_num] = sel_opt
+                if sel_opt == answer_key[q_num]:
+                    score += 1
+            
+            # For visualization, we keep row-indexed data
+            row_data_for_marking.append((q_num, row_q_bubbles, marked_cols))
                 
     return score, selected_answers, row_data_for_marking, options_map
 
 def mark_answers_on_image(warped, row_data, selected_answers, answer_key, options_map):
     rev_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
     
-    for (q, row_bubbles, marked_cols) in row_data:
-        question_number = q + 1
-        if question_number in answer_key:
-            correct_opt = answer_key[question_number]
+    for (q_num, row_bubbles, marked_cols) in row_data:
+        if q_num in answer_key:
+            correct_opt = answer_key[q_num]
             correct_idx = rev_map.get(correct_opt)
-            selected_opt = selected_answers.get(question_number)
+            selected_opt = selected_answers.get(q_num)
             
             # Draw correct answer outline (Blue)
             if correct_idx is not None and row_bubbles[correct_idx] is not None:
@@ -220,7 +251,6 @@ def mark_answers_on_image(warped, row_data, selected_answers, answer_key, option
                     if row_bubbles[idx] is not None:
                         color = (0, 0, 255)
                         cv2.drawContours(warped, [row_bubbles[idx]], -1, color, 3)
-                        # Add a small dot in center
                         (x, y, w, h) = cv2.boundingRect(row_bubbles[idx])
                         cv2.circle(warped, (x + w//2, y + h//2), 4, color, -1)
             else:
@@ -228,9 +258,8 @@ def mark_answers_on_image(warped, row_data, selected_answers, answer_key, option
                 if selected_idx is not None and row_bubbles[selected_idx] is not None:
                     color = (0, 255, 0) if selected_opt == correct_opt else (0, 0, 255)
                     cv2.drawContours(warped, [row_bubbles[selected_idx]], -1, color, 3)
-                    # Add a small dot in center
                     (x, y, w, h) = cv2.boundingRect(row_bubbles[selected_idx])
-                    cv2.circle(warped, (x + w//2, y + h//2), 4, color, -1)
+                    cv2.circle(warped, (x + w//2, y + h//2), 5, color, -1)
                     
     return warped
 
