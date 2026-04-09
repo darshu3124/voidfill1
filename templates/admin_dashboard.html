@@ -98,28 +98,52 @@
                 </div>
             </div>
 
+            <!-- Content Forge Card -->
+            <div class="{{ 'col-12' if selected_subject_id else 'col-md-6' }} mt-4 mb-2">
+                <div class="card shadow-lg border-0 bg-glass-dark p-2 border-info border-top border-3">
+                    <div class="card-header border-0 bg-transparent text-white pt-2 pb-0">
+                        <h6 class="fw-bold mb-0 small text-uppercase letter-spacing-1"><i class="bi bi-magic text-info me-2"></i> Content Forge</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3 opacity-75">Generate a randomized question paper and sync the OMR key automatically.</p>
+                        <div class="d-flex gap-2">
+                           <a href="{{ url_for('admin_generate_paper') }}" class="btn btn-outline-info btn-sm flex-grow-1 fw-bold rounded-pill shadow-sm hover-pop">
+                               Generate
+                           </a>
+                           <a href="{{ url_for('admin_list_papers') }}" class="btn btn-dark btn-sm rounded-pill px-3 shadow-sm hover-pop">
+                               <i class="bi bi-stack"></i>
+                           </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {% if selected_subject_id %}
             <!-- Bulk Add Sequence -->
             <div class="col-12">
                 <div class="card shadow-lg border-0 bg-glass-dark p-2 border-primary border-top border-3">
                     <div class="card-header border-0 bg-transparent text-white pt-3 pb-0">
-                        <h6 class="fw-bold mb-0"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Quick Injection</h6>
+                        <h6 class="fw-bold mb-0"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Quick Injection (Up to 100 Qs)</h6>
                     </div>
                     <div class="card-body pb-2">
                         <form action="{{ url_for('bulk_answer_key') }}" method="POST">
                             <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
-                            <div class="row g-2 mb-3">
-                                <div class="col-5">
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
                                     <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Start Q</label>
-                                    <input type="number" name="start_question" value="1" min="1" class="form-control premium-input border-0 text-center shadow-sm" required>
+                                    <input type="number" name="start_question" id="start_q_input" value="1" min="1" class="form-control premium-input border-0 text-center shadow-sm" required>
                                 </div>
-                                <div class="col-7">
-                                    <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Sequence</label>
-                                    <input type="text" name="bulk_answers" class="form-control premium-input border-0 text-uppercase shadow-sm" placeholder="e.g. ABC..." required>
+                                <div class="col-8">
+                                    <label class="form-label text-muted small fw-bold text-uppercase letter-spacing-1 ps-1 mb-2">Sequence (ABCD or 1234)</label>
+                                    <input type="text" name="bulk_answers" id="bulk_answers_input" class="form-control premium-input border-0 text-uppercase shadow-sm" placeholder="e.g. ABC..." required autocomplete="off">
                                 </div>
                             </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3 px-1">
+                                <small class="text-info font-monospace" id="seq_counter">Length: 0</small>
+                                <small class="text-muted" style="font-size: 0.7rem;">Spaces & commas ignored</small>
+                            </div>
                             <button type="submit" class="btn btn-warning w-100 fw-bold rounded-3 shadow-sm text-dark hover-pop">
-                                <i class="bi bi-save2-fill me-1"></i> Save Logic
+                                <i class="bi bi-save2-fill me-1"></i> Sync Answer Logic
                             </button>
                         </form>
                     </div>
@@ -135,16 +159,16 @@
     <div class="col-lg-8">
         <div class="card shadow-lg border-0 bg-glass-dark h-100 position-relative overflow-hidden">
             <div class="card-header border-0 bg-transparent border-bottom border-light border-opacity-10 py-4 px-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
-                <h4 class="fw-bold text-white mb-0"><i class="bi bi-grid-3x3-gap-fill text-success me-2"></i> Live Database</h4>
+                <h4 class="fw-bold text-white mb-0"><i class="bi bi-grid-3x3-gap-fill text-success me-2"></i> Subject Matrix</h4>
                 
                 <div class="d-flex flex-wrap gap-2">
                     <a href="{{ url_for('export_subject_csv', subject_id=selected_subject_id) }}" class="btn btn-outline-success btn-sm rounded-pill px-3 shadow-sm hover-pop">
-                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Export Data
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Export
                     </a>
                     <form action="{{ url_for('clear_answer_key') }}" method="POST" class="d-inline m-0">
                         <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
-                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm hover-pop" {% if keys|length==0 %}disabled{% endif %} onclick="return confirm('Clear ALL answers for this subject?')">
-                            <i class="bi bi-trash-fill me-1"></i> Clear
+                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm hover-pop" {% if keys|length==0 %}disabled{% endif %} onclick="return confirm('Clear ALL answers?')">
+                            <i class="bi bi-trash-fill me-1"></i> Clear ALL
                         </button>
                     </form>
                 </div>
@@ -152,25 +176,26 @@
             
             <div class="card-body p-4" style="max-height: 550px; overflow-y: auto;">
                 <div class="row g-3">
-                    {% for key in keys %}
-                    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-                        <div class="answer-bubble-card p-3 text-center shadow">
-                            <div class="q-num text-muted small fw-bold text-uppercase letter-spacing-1 mb-2 border-bottom border-light border-opacity-10 pb-2">Q{{ key.question_number }}</div>
-                            <div class="ans-val fw-bold text-white fs-4">{{ key.correct_option }}</div>
+                    {% set key_map = {} %}
+                    {% for k in keys %}
+                        {% set _ = key_map.update({k.question_number: k.correct_option}) %}
+                    {% endfor %}
+                    
+                    {% for q_num in range(1, 51) %}
+                    <div class="col-4 col-sm-3 col-md-2">
+                        <div class="answer-bubble-card p-2 text-center shadow-sm {{ 'border-success border-opacity-50' if q_num in key_map else 'opacity-50 border-dashed' }}" style="{{ 'background: rgba(25, 135, 84, 0.05);' if q_num in key_map else 'border-style: dashed !important;' }}">
+                            <div class="q-num text-muted small fw-bold mb-1" style="font-size: 0.65rem;">Q{{ q_num }}</div>
+                            <div class="ans-val fw-bold {{ 'text-success' if q_num in key_map else 'text-muted' }} fs-5">
+                                {{ key_map.get(q_num, '-') }}
+                            </div>
                         </div>
-                    </div>
-                    {% else %}
-                    <div class="col-12 py-5 text-center text-muted">
-                        <i class="bi bi-clipboard2-x text-warning opacity-50 mb-4" style="font-size: 4rem;"></i>
-                        <h4 class="fw-bold text-light">Matrix Empty</h4>
-                        <p class="text-dim">Use the Quick Injection panel to instantly populate the answer core.</p>
                     </div>
                     {% endfor %}
                 </div>
             </div>
             <div class="card-footer border-0 bg-transparent text-center py-4 border-top border-light border-opacity-10">
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-4 py-2 fs-6 fw-bold shadow-sm">
-                    Total Parsed: {{ keys|length }}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-4 py-2 fs-6 fw-bold shadow-sm">
+                    Questions Configured: {{ keys|length }} / 50
                 </span>
             </div>
         </div>
@@ -356,6 +381,17 @@
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl)
         })
+
+        const bulkInput = document.getElementById('bulk_answers_input');
+        const seqCounter = document.getElementById('seq_counter');
+        if (bulkInput && seqCounter) {
+            bulkInput.addEventListener('input', function() {
+                let val = this.value.toUpperCase().replace(/[^ABCD1234]/g, '');
+                seqCounter.innerText = 'Length: ' + val.length;
+                if (val.length >= 50) seqCounter.classList.add('text-success');
+                else seqCounter.classList.remove('text-success');
+            });
+        }
     })
 </script>
 

@@ -1,5 +1,8 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, copy_current_request_context
+import random
+import string
+import json
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
@@ -60,6 +63,11 @@ app.config.from_object(Config)
 
 db = SQLAlchemy(app)
 
+# Custom template filter for JSON
+@app.template_filter('from_json')
+def from_json_filter(s):
+    return json.loads(s) if s else {}
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -102,6 +110,28 @@ class AnswerKey(db.Model):
     
     __table_args__ = (db.UniqueConstraint('subject_id', 'question_number', name='uq_subject_question'),)
 
+class Question(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    paper_id = db.Column(db.Integer, db.ForeignKey('paper.id'), nullable=True) # Optional linking to a specific paper
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    option_a = db.Column(db.String(255), nullable=False)
+    option_b = db.Column(db.String(255), nullable=False)
+    option_c = db.Column(db.String(255), nullable=False)
+    option_d = db.Column(db.String(255), nullable=False)
+    correct_option = db.Column(db.String(1), nullable=False) # The original choice
+
+class Paper(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    paper_number = db.Column(db.String(10), unique=True, nullable=False) # Pattern ABC-12
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=get_ist_now)
+    # This stores the SHUFFLED state for archival
+    questions_json = db.Column(db.Text, nullable=False) 
+    answer_key_json = db.Column(db.Text, nullable=False)
+    
+    subject_rel = db.relationship('Subject', backref='papers_rel', lazy=True)
+
 class Result(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
@@ -113,6 +143,7 @@ class Result(db.Model):
     percentage = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), nullable=False)
     result_pdf = db.Column(db.String(255), nullable=True)
+    answers_json = db.Column(db.Text, nullable=True) # Stores captured student choices
     date = db.Column(db.DateTime, default=get_ist_now)
 
 @login_manager.user_loader
@@ -359,17 +390,27 @@ def bulk_answer_key():
         flash('Subject ID missing.', 'danger')
         return redirect(url_for('admin_dashboard'))
         
-    bulk_data = request.form.get('bulk_answers', '').upper()
-    clean_data = "".join(c for c in bulk_data if c in "ABCD")
+    raw_data = request.form.get('bulk_answers', '').upper()
+    # Support numbers 1-4 as A-D
+    mapping = {'1': 'A', '2': 'B', '3': 'C', '4': 'D'}
+    
+    clean_data = []
+    for char in raw_data:
+        if char in "ABCD":
+            clean_data.append(char)
+        elif char in mapping:
+            clean_data.append(mapping[char])
+        # Ignore spaces, commas, etc.
     
     if not clean_data:
-        flash('No valid answers (ABCD) found in input.', 'warning')
+        flash('No valid answers (A-D or 1-4) found in input.', 'warning')
         return redirect(url_for('admin_dashboard', subject_id=subject_id))
     
     try:
         start_q = int(request.form.get('start_question', 1))
         for i, opt in enumerate(clean_data):
             q_num = start_q + i
+            if q_num > 100: break # Safety limit
             key = AnswerKey.query.filter_by(subject_id=subject_id, question_number=q_num).first()
             if key:
                 key.correct_option = opt
@@ -378,7 +419,7 @@ def bulk_answer_key():
                 db.session.add(key)
         
         db.session.commit()
-        flash(f'Successfully added/updated {len(clean_data)} answers for Question {start_q} onwards.', 'success')
+        flash(f'Successfully synced {len(clean_data)} answers starting from Question {start_q}.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error: {e}', 'danger')
@@ -406,27 +447,24 @@ def clear_answer_key():
     except Exception as e:
         db.session.rollback()
         flash(f'Error clearing answer key: {e}', 'danger')
-    return redirect(url_for('admin_dashboard', subject_id=subject_id))
-def evaluate_single_omr(upload_path, filename, student, subject_id, answer_key):
+def evaluate_single_omr(upload_path, filename, student, subject_id):
     import time
     processed_filename = f"processed_{filename.rsplit('.', 1)[0]}.jpg"
     processed_path = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
     
-    score, total_q, selected, final_path = process_omr(upload_path, answer_key, processed_path)
-    
-    total_questions_in_key = len(answer_key)
-    percentage = (score / total_questions_in_key) * 100 if total_questions_in_key > 0 else 0
-    status = 'Pass' if percentage >= 40 else 'Fail'
+    # Captured choices only. No evaluation.
+    score, total_q, selected, final_path = process_omr(upload_path, processed_path)
     
     new_result = Result(
         student_id=student.id,
         subject_id=subject_id,
-        score=score,
-        total_questions=total_questions_in_key,
+        score=0, # Score is always 0 in capture-only mode
+        total_questions=total_q,
         uploaded_image=filename,
         processed_image=processed_filename,
-        percentage=percentage,
-        status=status
+        percentage=0,
+        status='Evaluated',
+        answers_json=json.dumps(selected) # Save the captured choices as JSON
     )
     db.session.add(new_result)
     db.session.commit()
@@ -543,6 +581,19 @@ def evaluate_single_omr(upload_path, filename, student, subject_id, answer_key):
     send_result_email(student.email, student.name, result_url)
     return result_id
 
+@app.route('/api/paper_info/<string:paper_number>')
+def get_paper_info(paper_number):
+    if session.get('role') != 'admin':
+        return {"success": False, "message": "Unauthorized"}, 403
+    paper = Paper.query.filter_by(paper_number=paper_number).first()
+    if paper:
+        return {
+            "success": True, 
+            "subject_id": paper.subject_id, 
+            "subject_name": paper.subject_rel.name
+        }
+    return {"success": False, "message": "Paper not found"}, 404
+
 @app.route('/upload_omr', methods=['GET', 'POST'])
 def upload_omr():
     if session.get('role') != 'admin':
@@ -556,10 +607,11 @@ def upload_omr():
         student_id = request.form.get('student_id')
         subject_id = request.form.get('subject_id')
         
-        if not student_id or not subject_id:
-            flash('Please select both student and subject.', 'danger')
+        # Evaluation logic fully removed. Only subject ID is needed for record keeping.
+        if not subject_id:
+            flash('Please select a subject.', 'danger')
             return redirect(request.url)
-            
+        
         if 'omr_image' not in request.files:
             flash('No file part', 'danger')
             return redirect(request.url)
@@ -577,17 +629,10 @@ def upload_omr():
             upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(upload_path)
             
-            keys = AnswerKey.query.filter_by(subject_id=subject_id).all()
-            if not keys:
-                flash('Missing answer key for this subject. Contact admin.', 'danger')
-                return redirect(request.url)
-                
-            answer_key = {k.question_number: k.correct_option for k in keys}
-            
             try:
                 student = Student.query.get(student_id)
-                result_id = evaluate_single_omr(upload_path, filename, student, subject_id, answer_key)
-                flash(f'Successfully evaluated OMR for {student.name}!', 'success')
+                result_id = evaluate_single_omr(upload_path, filename, student, subject_id)
+                flash(f'Successfully captured choices for {student.name}!', 'success')
                 return redirect(url_for('admin_view_result', result_id=result_id))
             except Exception as e:
                 db.session.rollback()
@@ -604,22 +649,38 @@ def batch_upload_omr():
     if session.get('role') != 'admin':
         return redirect(url_for('login'))
         
-    subject_id = request.form.get('subject_id')
+    paper_number = request.form.get('paper_number')
+    
+    # Determine the specific Answer Key
+    answer_key = None
+    if paper_number:
+        paper = Paper.query.filter_by(paper_number=paper_number).first()
+        if paper:
+            subject_id = paper.subject_id
+            answer_key_raw = json.loads(paper.answer_key_json)
+            if isinstance(answer_key_raw, list):
+                answer_key = {int(item['q']): item['ans'] for item in answer_key_raw}
+            else:
+                answer_key = {int(k): v for k, v in answer_key_raw.items()}
+        else:
+            flash(f"Invalid Paper Code: {paper_number}", 'danger')
+            return redirect(url_for('upload_omr'))
+
     if not subject_id:
-        flash('Subject ID is missing.', 'danger')
+        flash('Subject ID or Paper Code is missing.', 'danger')
         return redirect(url_for('upload_omr'))
         
+    if not answer_key:
+        keys = AnswerKey.query.filter_by(subject_id=subject_id).all()
+        if not keys:
+            flash('Missing answer key for this subject. Contact admin.', 'danger')
+            return redirect(url_for('upload_omr'))
+        answer_key = {k.question_number: k.correct_option for k in keys}
+
     files = request.files.getlist('batch_images')
     if not files or files[0].filename == '':
         flash('No files selected.', 'danger')
         return redirect(url_for('upload_omr'))
-        
-    keys = AnswerKey.query.filter_by(subject_id=subject_id).all()
-    if not keys:
-        flash('Missing answer key for this subject. Contact admin.', 'danger')
-        return redirect(url_for('upload_omr'))
-        
-    answer_key = {k.question_number: k.correct_option for k in keys}
     
     success_count = 0
     fail_count = 0
@@ -644,7 +705,7 @@ def batch_upload_omr():
             shutil.copy(file_storage_or_path, upload_path)
             
         try:
-            evaluate_single_omr(upload_path, save_filename, student, subject_id, answer_key)
+            evaluate_single_omr(upload_path, save_filename, student, subject_id)
             success_count += 1
         except Exception as e:
             db.session.rollback()
@@ -791,6 +852,184 @@ def export_subject_csv(subject_id):
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment;filename=class_report_{subject.name.replace(' ', '_')}.csv"}
     )
+
+# --- QUESTION PAPER GENERATION ---
+
+@app.route('/admin/generate_paper', methods=['GET', 'POST'])
+def admin_generate_paper():
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    subjects = Subject.query.all()
+    
+    if request.method == 'POST':
+        subject_id = request.form.get('subject_id')
+        num_q = int(request.form.get('num_questions', 0))
+        
+        if not subject_id or num_q <= 0:
+            flash('Invalid subject or number of questions.', 'danger')
+            return redirect(url_for('admin_generate_paper'))
+            
+        session['paper_subject_id'] = subject_id
+        session['paper_total_questions'] = num_q
+        session['paper_questions'] = []
+        session['paper_current_idx'] = 1
+        
+        return redirect(url_for('admin_add_question'))
+        
+    return render_template('generate_paper_start.html', subjects=subjects)
+
+@app.route('/admin/add_question', methods=['GET', 'POST'])
+def admin_add_question():
+    if session.get('role') != 'admin' or 'paper_questions' not in session:
+        return redirect(url_for('login'))
+        
+    curr_idx = session.get('paper_current_idx', 1)
+    total = session.get('paper_total_questions', 0)
+    
+    if curr_idx > total:
+        return redirect(url_for('admin_finalize_paper'))
+        
+    if request.method == 'POST':
+        q_text = request.form.get('q_text')
+        opt_a = request.form.get('opt_a')
+        opt_b = request.form.get('opt_b')
+        opt_c = request.form.get('opt_c')
+        opt_d = request.form.get('opt_d')
+        correct = request.form.get('correct_opt') # The actual value of the correct option
+        
+        q_data = {
+            'text': q_text,
+            'options': [
+                {'id': 'A', 'text': opt_a},
+                {'id': 'B', 'text': opt_b},
+                {'id': 'C', 'text': opt_c},
+                {'id': 'D', 'text': opt_d}
+            ],
+            'correct_value': request.form.get('opt_' + correct.lower()) # e.g. opt_a's text
+        }
+        
+        paper_qs = session['paper_questions']
+        paper_qs.append(q_data)
+        session['paper_questions'] = paper_qs
+        session['paper_current_idx'] = curr_idx + 1
+        
+        if session['paper_current_idx'] > total:
+            return redirect(url_for('admin_finalize_paper'))
+        return redirect(url_for('admin_add_question'))
+        
+    return render_template('add_question.html', curr_idx=curr_idx, total=total)
+
+@app.route('/admin/finalize_paper')
+def admin_finalize_paper():
+    if session.get('role') != 'admin' or 'paper_questions' not in session:
+        return redirect(url_for('login'))
+        
+    questions = session.get('paper_questions', [])
+    subject_id = session.get('paper_subject_id')
+    subject = Subject.query.get(subject_id)
+    
+    # Generate unique paper number Pattern: 3 alphabet + - + 2 number (e.g. ABC-12)
+    def gen_paper_num():
+        chars = ''.join(random.choices(string.ascii_uppercase, k=3))
+        nums = ''.join(random.choices(string.digits, k=2))
+        return f"{chars}-{nums}"
+    
+    paper_num = gen_paper_num()
+    # Check for collision
+    while Paper.query.filter_by(paper_number=paper_num).first():
+        paper_num = gen_paper_num()
+    
+    shuffled_questions = []
+    simple_answer_key = [] # Just list of options for the separate view
+    
+    for i, q in enumerate(questions):
+        opts = q['options']
+        random.shuffle(opts)
+        
+        # Determine new correct identifier
+        new_correct_id = 'A'
+        for idx, opt in enumerate(opts):
+            if opt['text'] == q['correct_value']:
+                new_correct_id = chr(65 + idx) # A, B, C, D
+                break
+        
+        # Store for display
+        shuffled_questions.append({
+            'num': i + 1,
+            'text': q['text'],
+            'options': opts,
+            'correct': new_correct_id
+        })
+        simple_answer_key.append({'q': i+1, 'ans': new_correct_id})
+        
+        # Update OMR AnswerKey (Current subject context)
+        key = AnswerKey.query.filter_by(subject_id=subject_id, question_number=i+1).first()
+        if key:
+            key.correct_option = new_correct_id
+        else:
+            key = AnswerKey(subject_id=subject_id, question_number=i+1, correct_option=new_correct_id)
+            db.session.add(key)
+            
+    # Create the Paper entry
+    new_paper = Paper(
+        paper_number=paper_num,
+        subject_id=subject_id,
+        questions_json=json.dumps(shuffled_questions),
+        answer_key_json=json.dumps(simple_answer_key)
+    )
+    db.session.add(new_paper)
+    db.session.commit()
+    
+    # Cleanup session
+    session.pop('paper_questions', None)
+    session.pop('paper_current_idx', None)
+    session.pop('paper_total_questions', None)
+    
+    return redirect(url_for('admin_view_paper', paper_id=new_paper.id))
+
+@app.route('/admin/papers')
+def admin_list_papers():
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    papers = Paper.query.order_by(Paper.created_at.desc()).all()
+    return render_template('list_papers.html', papers=papers)
+
+@app.route('/admin/view_paper/<int:paper_id>')
+def admin_view_paper(paper_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    paper_obj = Paper.query.get_or_404(paper_id)
+    paper_data = {
+        'id': paper_obj.id,
+        'paper_number': paper_obj.paper_number,
+        'subject_name': Subject.query.get(paper_obj.subject_id).name,
+        'questions': json.loads(paper_obj.questions_json),
+        'created_at': paper_obj.created_at
+    }
+    return render_template('view_paper.html', paper=paper_data)
+
+@app.route('/admin/view_answer_key/<int:paper_id>')
+def admin_view_answer_key(paper_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    paper_obj = Paper.query.get_or_404(paper_id)
+    key_data = json.loads(paper_obj.answer_key_json)
+    return render_template('view_answer_key.html', paper_number=paper_obj.paper_number, key=key_data)
+
+@app.route('/admin/generate_omr/<int:paper_id>')
+def admin_generate_omr(paper_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    paper_obj = Paper.query.get_or_404(paper_id)
+    questions = json.loads(paper_obj.questions_json)
+    num_questions = len(questions)
+    
+    # We pass the actual num_questions. The template will handle the dynamic layout.
+    return render_template('omr_sheet.html', paper=paper_obj, num_questions=num_questions)
 
 # Error Handling
 @app.errorhandler(413) # File size exceeded

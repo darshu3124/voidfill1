@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-5 mb-5 shadow-lg p-5 border-0 rounded-lg bg-white">
+    <div class="alert alert-success shadow-sm p-4 mb-5 border-left-success d-print-none" role="alert">
+        <h4 class="alert-heading font-weight-bold h5 mb-2"><i class="fas fa-check-circle mr-2"></i>Paper Shuffled Successfully!</h4>
+        <p class="mb-0 small">Each original option has been shuffled randomly. The answer key has been synced.</p>
+    </div>
+    <div id="print-area">
+        <div class="row align-items-center mb-5">
+            <div class="col-md-8">
+                <h1 class="display-4 font-weight-bold text-primary">{{ paper.subject_name }}</h1>
+                <p class="text-muted h4">Module Code: <span class="badge badge-primary px-3 py-2 shadow-sm" style="letter-spacing: 2px;">{{ paper.paper_number }}</span></p>
+            </div>
+            <div class="col-md-4 text-right d-print-none">
+                <a href="{{ url_for('admin_view_answer_key', paper_id=paper.id) }}" class="btn btn-outline-success btn-lg shadow-sm mr-2"><i class="fas fa-key mr-2"></i>Answer Key</a>
+                <button onclick="window.print()" class="btn btn-primary btn-lg shadow-sm mr-2"><i class="fas fa-print mr-2"></i>Print Paper</button>
+                <a href="{{ url_for('admin_list_papers') }}" class="btn btn-outline-secondary btn-lg shadow-sm">Finish</a>
+            </div>
+        </div>
+
+        <div class="accordion" id="paper-accordion">
+            {% for q in paper.questions %}
+            <div class="card shadow-sm border-0 mb-4 bg-light">
+                <div class="card-header border-0 bg-white" id="heading-{{ q.num }}">
+                    <h5 class="mb-0 d-flex align-items-center">
+                        <div class="font-weight-bold h5 py-3 mb-0 flex-grow-1 text-dark" style="cursor: pointer;" data-toggle="collapse" data-target="#collapse-{{ q.num }}">
+                            Q{{ q.num }}: {{ q.text }}
+                        </div>
+                    </h5>
+                </div>
+                <div id="collapse-{{ q.num }}" class="collapse show" data-parent="#paper-accordion">
+                    <div class="card-body p-4 bg-white border-top">
+                        <div class="row">
+                            {% for opt in q.options %}
+                            <div class="col-md-6 mb-3 p-3 border rounded shadow-sm mx-auto bg-white" style="max-width: 45%;">
+                                <span class="font-weight-bold text-dark mr-2">{{ loop.index0 | string | replace('0','A') | replace('1','B') | replace('2','C') | replace('3','D') }}</span>
+                                <span class="text-dark">{{ opt.text }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    @media print {
+        body * { visibility: hidden; }
+        #print-area, #print-area * { visibility: visible; }
+        #print-area { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; border: none; }
+        .d-print-none, .btn, .alert { display: none !important; }
+        .badge { background: #fff !important; color: #000 !important; border: 1px solid #000 !important; }
+        .collapse { display: block !important; }
+        .display-4 { margin-top: 50px; font-size: 30px; text-align: center; }
+        .text-muted { text-align: center; }
+        .card { border: none !important; }
+        .card-header { border-bottom: 2px solid #eee !important; margin-top: 10px; }
+    }
+    .border-left-success { border-left: 0.5rem solid #1cc88a !important; }
+    .btn-link:focus, .btn-link:hover { text-decoration: none; color: #4e73df; }
+    .accordion > .card { overflow: visible; }
+    #print-area, #print-area *:not(.badge) { color: #000 !important; }
+    .badge { color: #fff !important; } 
+    .text-primary { color: #007bff !important; }
+    .text-muted { color: #6c757d !important; }
+</style>
+{% endblock %}

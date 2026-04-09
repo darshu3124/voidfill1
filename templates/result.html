@@ -111,32 +111,30 @@
 
                     <hr class="opacity-10 mb-4">
 
-                    <h5 class="text-white mb-3">Performance Analysis</h5>
+                    <h5 class="text-white mb-3">Captured Student Selections</h5>
                     <div class="p-4 rounded-4 bg-glass-dark">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-dim">Accuracy Rate</span>
-                            <span class="text-white fw-bold">{{ "%.1f"|format(result.percentage) }}%</span>
-                        </div>
-                        <div class="progress mb-4"
-                            style="height: 10px; border-radius: 5px; background: rgba(255,255,255,0.05);">
-                            <div class="progress-bar {% if result.status == 'Pass' %}bg-primary{% else %}bg-danger{% endif %} progress-bar-striped progress-bar-animated"
-                                role="progressbar" style="width: {{ result.percentage }}%;"
-                                aria-valuenow="{{ result.percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-
-                        <div class="row text-center pt-2">
-                            <div class="col-4">
-                                <h3 class="text-white mb-0">{{ result.total_questions }}</h3>
-                                <small class="text-dim">Total</small>
-                            </div>
-                            <div class="col-4 border-start border-end border-opacity-10 border-white">
-                                <h3 class="text-success mb-0">{{ result.score }}</h3>
-                                <small class="text-dim">Correct</small>
-                            </div>
-                            <div class="col-4">
-                                <h3 class="text-danger mb-0">{{ result.total_questions - result.score }}</h3>
-                                <small class="text-dim">Incorrect</small>
-                            </div>
+                        <div class="row g-3">
+                            {% if result.answers_json %}
+                                {% set answers = result.answers_json|from_json %}
+                                {% for q_num, ans in answers.items()|sort %}
+                                <div class="col-6 col-md-4">
+                                    <div class="p-2 rounded-3 border border-white border-opacity-10">
+                                        <span class="text-dim small d-block">Q{{ q_num }} Selection</span>
+                                        {% if ans == 'INVALID' %}
+                                            <span class="text-danger fw-bold">INVALID Selection</span>
+                                        {% elif ans == 'BLANK' %}
+                                            <span class="text-dim">No Selection</span>
+                                        {% else %}
+                                            <span class="text-white">Option <strong>{{ ans }}</strong> Selected</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="col-12 text-dim italic text-center py-3">
+                                    Capture data not available.
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
