@@ -106,9 +106,15 @@ def detect_bubbles(thresh):
         bbox_area = w * h
         solidity = area / float(bbox_area) if bbox_area > 0 else 0
         
-        # Bubbles and question numbers are usually small chunks
-        if 15 <= w <= 80 and 15 <= h <= 80 and 0.7 <= ar <= 1.4 and solidity > 0.4:
-            questionCnts.append(c)
+        # Calculate circularity: 4*pi*Area / Perimeter^2
+        peri = cv2.arcLength(c, True)
+        circularity = 4 * np.pi * area / (peri * peri) if peri > 0 else 0
+        
+        # Bubbles are highly circular and solid (area vs bounding box)
+        # We tighten the constraints to ignore text like 'A', 'B', '1', '2', etc.
+        if 20 <= w <= 70 and 20 <= h <= 70 and 0.8 <= ar <= 1.2:
+            if solidity > 0.7 and circularity > 0.75:
+                questionCnts.append(c)
 
     if len(questionCnts) == 0:
         return []
@@ -198,12 +204,14 @@ def evaluate_answers(thresh, rows, answer_key):
                 x_in_block = (rel_x - rel_start) / (rel_end - rel_start)
                 
                 # Column mapping within block
+                # More precise column mapping to handle variations in bubble spacing
                 if x_in_block < 0.22: col_idx = -1 # Question Number
-                elif x_in_block < 0.42: col_idx = 0 # A
-                elif x_in_block < 0.62: col_idx = 1 # B
-                elif x_in_block < 0.82: col_idx = 2 # C
-                else: col_idx = 3 # D
-                
+                elif 0.22 <= x_in_block < 0.42: col_idx = 0 # A
+                elif 0.42 <= x_in_block < 0.62: col_idx = 1 # B
+                elif 0.62 <= x_in_block < 0.82: col_idx = 2 # C
+                elif 0.82 <= x_in_block < 1.00: col_idx = 3 # D
+                else: continue
+
                 if col_idx >= 0:
                     row_q_bubbles[col_idx] = c
                     # Check fill
@@ -224,7 +232,7 @@ def evaluate_answers(thresh, rows, answer_key):
             
             if q_num in answer_key:
                 selected_answers[q_num] = sel_opt
-                if sel_opt == answer_key[q_num]:
+                if str(sel_opt).strip().upper() == str(answer_key[q_num]).strip().upper():
                     score += 1
             
             # For visualization, we keep row-indexed data
@@ -254,12 +262,15 @@ def mark_answers_on_image(warped, row_data, selected_answers, answer_key, option
                         (x, y, w, h) = cv2.boundingRect(row_bubbles[idx])
                         cv2.circle(warped, (x + w//2, y + h//2), 4, color, -1)
             else:
-                selected_idx = rev_map.get(selected_opt)
+                selected_idx = rev_map.get(str(selected_opt).strip().upper())
                 if selected_idx is not None and row_bubbles[selected_idx] is not None:
-                    color = (0, 255, 0) if selected_opt == correct_opt else (0, 0, 255)
+                    is_correct = str(selected_opt).strip().upper() == str(correct_opt).strip().upper()
+                    color = (0, 255, 0) if is_correct else (0, 0, 255)
                     cv2.drawContours(warped, [row_bubbles[selected_idx]], -1, color, 3)
                     (x, y, w, h) = cv2.boundingRect(row_bubbles[selected_idx])
                     cv2.circle(warped, (x + w//2, y + h//2), 5, color, -1)
+                    # Add debug text
+                    cv2.putText(warped, f"Q{q_num}:{selected_opt}", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
                     
     return warped
 

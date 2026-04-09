@@ -259,7 +259,7 @@ def admin_dashboard():
         
     if request.method == 'POST' and 'question_number' in request.form:
         q_num = int(request.form['question_number'])
-        opt = request.form['correct_option']
+        opt = request.form['correct_option'].upper()
         subject_id = request.form.get('subject_id')
         
         if not subject_id:
