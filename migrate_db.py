@@ -45,9 +45,20 @@ def migrate():
         if 'subject_id' not in columns:
             print("Adding subject_id to result table...")
             default_subject = Subject.query.filter_by(name='General').first()
+            if not default_subject:
+                default_subject = Subject(name='General')
+                db.session.add(default_subject)
+                db.session.commit()
             cursor.execute(f"ALTER TABLE result ADD COLUMN subject_id INTEGER REFERENCES subject(id) DEFAULT {default_subject.id}")
             conn.commit()
-            print("Migration complete for result.")
+            print("Migration complete for subject_id in result.")
+
+        # Check if answers_json exists in result
+        if 'answers_json' not in columns:
+            print("Adding answers_json to result table...")
+            cursor.execute("ALTER TABLE result ADD COLUMN answers_json TEXT")
+            conn.commit()
+            print("Migration complete for answers_json in result.")
 
         conn.close()
         print("All migrations checked/applied.")

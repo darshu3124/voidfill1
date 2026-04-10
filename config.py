@@ -7,6 +7,11 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'super_secret_key_void_fill'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///omr_system.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "connect_args": {
+            "timeout": 20
+        }
+    }
     UPLOAD_FOLDER = os.path.join('static', 'uploads')
     PROCESSED_FOLDER = os.path.join('static', 'processed')
     MAX_CONTENT_LENGTH = 100 * 1024 * 1024 # 100 MB limits

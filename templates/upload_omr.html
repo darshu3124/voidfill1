@@ -11,20 +11,26 @@
 
                 <!-- Student & Subject Selection -->
                 <div class="row mb-4">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">Select Student</label>
-                        <select id="student_id_select" name="student_id" class="form-select form-select-lg border-2"
-                            required>
+                        <select id="student_id_select" name="student_id" class="form-select border-2" required>
                             <option value="">-- Choose Student --</option>
                             {% for s in students %}
-                            <option value="{{ s.id }}">{{ s.email }} {% if s.name %}({{ s.name }}){% endif %}</option>
+                            <option value="{{ s.id }}">{{ s.email }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Question Paper Code</label>
+                        <div class="input-group">
+                            <input type="text" id="paper_number_input" name="paper_number" class="form-control border-2 text-uppercase font-weight-bold" placeholder="e.g. ABC-12">
+                            <button type="button" id="btn_verify_paper" class="btn btn-outline-primary border-2"><i class="bi bi-search"></i></button>
+                        </div>
+                        <small id="paper_hint" class="form-text text-muted"></small>
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">Select Subject / Exam</label>
-                        <select id="subject_id_select" name="subject_id" class="form-select form-select-lg border-2"
-                            required>
+                        <select id="subject_id_select" name="subject_id" class="form-select border-2" required>
                             <option value="">-- Choose Subject / Exam --</option>
                             {% for s in subjects %}
                             <option value="{{ s.id }}">{{ s.name }}</option>
@@ -34,13 +40,49 @@
                 </div>
 
                 <script>
-                    // Sync selections to hidden fields
-                    document.getElementById('student_id_select').addEventListener('change', (e) => {
-                        document.querySelectorAll('.target_student_id').forEach(el => el.value = e.target.value);
-                    });
-                    document.getElementById('subject_id_select').addEventListener('change', (e) => {
-                        document.querySelectorAll('.target_subject_id').forEach(el => el.value = e.target.value);
-                    });
+                    const studentSelect = document.getElementById('student_id_select');
+                    const subjectSelect = document.getElementById('subject_id_select');
+                    const paperInput = document.getElementById('paper_number_input');
+                    const paperHint = document.getElementById('paper_hint');
+                    const btnVerify = document.getElementById('btn_verify_paper');
+
+                    function syncIds() {
+                        const sid = studentSelect.value;
+                        const subid = subjectSelect.value;
+                        const pnum = paperInput.value;
+                        document.querySelectorAll('.target_student_id').forEach(el => el.value = sid);
+                        document.querySelectorAll('.target_subject_id').forEach(el => el.value = subid);
+                        document.querySelectorAll('.target_paper_number').forEach(el => el.value = pnum);
+                    }
+
+                    studentSelect.addEventListener('change', syncIds);
+                    subjectSelect.addEventListener('change', syncIds);
+                    paperInput.addEventListener('input', syncIds);
+
+                    async function verifyPaper() {
+                        const code = paperInput.value.trim();
+                        if (!code) return;
+                        
+                        btnVerify.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                        try {
+                            const resp = await fetch(`/api/paper_info/${code}`);
+                            const data = await resp.json();
+                            if (data.success) {
+                                subjectSelect.value = data.subject_id;
+                                paperHint.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill"></i> ${data.subject_name}</span>`;
+                                syncIds();
+                            } else {
+                                paperHint.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-x-circle-fill"></i> Invalid Code</span>`;
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        } finally {
+                            btnVerify.innerHTML = '<i class="bi bi-search"></i>';
+                        }
+                    }
+
+                    btnVerify.addEventListener('click', verifyPaper);
+                    paperInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') { e.preventDefault(); verifyPaper(); } });
                 </script>
 
                 <hr>
@@ -72,6 +114,7 @@
                         <form id="uploadForm" method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="student_id" class="target_student_id">
                             <input type="hidden" name="subject_id" class="target_subject_id">
+                            <input type="hidden" name="paper_number" class="target_paper_number">
 
                             <div class="mb-4 text-center">
                                 <div class="file-upload-wrapper mb-3" onclick="document.getElementById('omr_image').click()">
@@ -168,6 +211,8 @@
                     <div class="tab-pane fade" id="batch" role="tabpanel">
                         <form id="batchForm" action="{{ url_for('batch_upload_omr') }}" method="POST"
                             enctype="multipart/form-data">
+                            <input type="hidden" name="subject_id" class="target_subject_id">
+                            <input type="hidden" name="paper_number" class="target_paper_number">
                             <div class="mb-4">
                                 <label class="form-label fw-bold">Select Subject / Exam for Batch</label>
                                 <select name="subject_id" class="form-select form-select-lg border-2" required>
@@ -221,17 +266,7 @@
     let canvas = document.getElementById('canvas');
     let stream = null;
 
-    const studentSelect = document.getElementById('student_id_select');
-    const subjectSelect = document.getElementById('subject_id_select');
-
-    // Sync selections to hidden fields
-    function syncIds() {
-        document.querySelectorAll('.target_student_id').forEach(el => el.value = studentSelect.value);
-        document.querySelectorAll('.target_subject_id').forEach(el => el.value = subjectSelect.value);
-    }
-
-    studentSelect.addEventListener('change', syncIds);
-    subjectSelect.addEventListener('change', syncIds);
+    // syncIds and selectors are now handled in the top script
 
     async function startCamera() {
         const warning = document.getElementById('insecure_warning');
@@ -400,31 +435,31 @@
 
     // Drag and Drop Logic
     const dropArea = document.querySelector('.file-upload-wrapper');
-    const fileInput = document.getElementById('omr_image');
+    if (dropArea) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, preventDefaults, false);
-    });
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
+        });
 
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
+        });
+
+        dropArea.addEventListener('drop', e => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const fInput = document.getElementById('omr_image');
+                fInput.files = files;
+                updateFileName(fInput);
+            }
+        }, false);
     }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
-    });
-
-    dropArea.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        fileInput.files = files;
-        updateFileName(fileInput);
-    }, false);
 
     // Initialize QR Code if URL is available
     {% if ngrok_url %}

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMR Answer Sheet - MCQ Examination</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        :root {
+            --primary-blue: #0d47a1;
+            --bubble-fill: #A0CAFF; /* Slightly darker light-blue for better contrast */
+            --bubble-border: #000000;
+            --section-bg: #f8f9fa;
+            --border-thick: 3.5px; /* Robust for ROI detection */
+            --border-bold: 5.0px; /* Strongest boundary for answer grid */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            color: #2c3e50;
+        }
+
+        /* A4 Page Setup */
+        .page {
+            width: 210mm;
+            height: 297mm;
+            padding: 8mm 12mm; /* Further reduced padding to maximize content area */
+            margin: 15mm auto;
+            background: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+
+        /* cv-marker styling remains unchanged - critical for detection */
+        .cv-marker {
+            position: absolute;
+            width: 8mm;
+            height: 8mm;
+            background-color: #000;
+        }
+        .m-tl { top: 5mm; left: 5mm; }
+        .m-tr { top: 5mm; right: 5mm; }
+        .m-bl { bottom: 5mm; left: 5mm; }
+        .m-br { bottom: 5mm; right: 5mm; }
+
+        /* Compact Header Section */
+        .header {
+            border: var(--border-thick) solid #000;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            background-color: #fff;
+            position: relative;
+        }
+
+        .college-name {
+            font-size: 20pt;
+            font-weight: 800;
+            text-align: center;
+            color: var(--primary-blue);
+            margin-bottom: 0px;
+        }
+
+        .exam-title {
+            font-size: 13pt;
+            font-weight: 700;
+            text-align: center;
+            color: #333;
+        }
+
+        .qr-placeholder {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            right: 12px;
+            width: 58px;
+            height: 58px;
+            border: 2px solid #000;
+            padding: 2px;
+            background: white;
+        }
+        .qr-placeholder img { width: 100%; height: 100%; }
+
+        /* Compact Student Info */
+        .student-info-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .info-section {
+            border: var(--border-thick) solid #000;
+            background-color: var(--section-bg);
+            padding: 8px 12px;
+            flex: 1;
+        }
+        .info-section.roll-section { flex: 2; }
+
+        .section-label {
+            font-size: 8pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            color: var(--primary-blue);
+        }
+
+        .roll-boxes { display: flex; gap: 0; }
+        .roll-box {
+            width: 7.5mm;
+            height: 8.5mm;
+            border: 2px solid #000;
+            background: #fff;
+        }
+
+        .paper-code-display {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--primary-blue);
+            line-height: 1;
+        }
+
+        /* Compact Instruction Box */
+        .instruction-box {
+            border: var(--border-thick) solid #000;
+            background-color: var(--section-bg);
+            padding: 8px 15px;
+            margin-bottom: 10px;
+            font-size: 9pt;
+        }
+        .instruction-box ul {
+            margin: 0;
+            padding-left: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px;
+        }
+
+        /* OMR Answer Area - RECTANGULAR UNIFORM GRID */
+        .answer-area-boundary {
+            border: var(--border-bold) solid #000;
+            padding: 15px 10px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* Strictly 3 columns */
+            gap: 0;
+            margin: auto 0;
+            background-color: #fff;
+            min-height: 0;
+        }
+
+        .q-item {
+            height: 9.2mm; /* Strictly uniform vertical spacing */
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            box-sizing: border-box;
+            border-bottom: 0.5px solid #eee;
+            border-right: 0.5px solid #eee;
+        }
+        
+        .q-item:nth-child(3n) {
+            border-right: none; /* Clean edge for the last column */
+        }
+
+        /* Remove bottom border for the last row's slots specifically to keep bottom edge clean */
+        .q-item.last-row {
+            border-bottom: none;
+        }
+
+        .q-no {
+            width: 10mm;
+            font-weight: 800;
+            font-size: 10.5pt;
+            text-align: left;
+            color: #000;
+        }
+
+        .bubble-group {
+            display: flex;
+            flex: 1;
+            justify-content: space-around;
+        }
+
+        .bubble {
+            width: 6.2mm;
+            height: 6.2mm;
+            border: 3.2px solid var(--bubble-border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bubble-fill);
+            font-size: 9.5pt;
+            font-weight: 950;
+            color: #000;
+            box-sizing: border-box;
+        }
+
+        .q-item.empty {
+            background-color: transparent;
+        }
+
+        /* Footer Section */
+        .footer {
+            margin-top: auto;
+            padding: 15px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .sig-container {
+            text-align: center;
+        }
+
+        .sig-line {
+            width: 60mm;
+            border-top: 2.2px solid #000;
+            margin-bottom: 5px;
+        }
+
+        .sig-label {
+            font-size: 9pt;
+            font-weight: 800;
+            color: var(--primary-blue);
+        }
+
+        @media print {
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .page { margin: 0; box-shadow: none; border: none; padding: 15mm; }
+            .no-print { display: none; }
+            @page { size: A4 portrait; margin: 0; }
+        }
+
+        .btn-print {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-weight: 700;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+<button onclick="window.print()" class="btn btn-primary btn-print no-print">
+    <i class="bi bi-printer-fill me-2"></i> PRINT OMR SHEET
+</button>
+
+<div class="page">
+    <!-- Corner Alignment Markers -->
+    <div class="cv-marker m-tl"></div>
+    <div class="cv-marker m-tr"></div>
+    <div class="cv-marker m-bl"></div>
+    <div class="cv-marker m-br"></div>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="college-name">DR B B Hegde College Kundapura</div>
+        <div class="exam-title">OMR Answer Sheet - MCQ Examination</div>
+        <div class="qr-placeholder">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ paper.paper_number }}" alt="QR Code">
+        </div>
+    </div>
+
+    <!-- Student Information Area -->
+    <div class="student-info-row">
+        <div class="info-section roll-section">
+            <div class="section-label">Candidate Roll Number</div>
+            <div class="roll-boxes">
+                {% for _ in range(10) %}
+                <div class="roll-box"></div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="info-section">
+            <div class="section-label">Paper Code</div>
+            <div class="paper-code-display">{{ paper.paper_number }}</div>
+        </div>
+    </div>
+
+    <!-- Instructions Area -->
+    <div class="instruction-box">
+        <div class="section-label" style="text-decoration: underline;">Instructions</div>
+        <ul>
+            <li>Use <strong>Black/Blue</strong> pen only.</li>
+            <li>Fill bubbles <strong>completely</strong>.</li>
+            <li>Only <strong>one answer</strong> per question.</li>
+            <li>Avoid any <strong>stray marks</strong>.</li>
+        </ul>
+    </div>
+
+    <!-- Unified Answer Area (Strict Rectangular Grid) -->
+    <div class="answer-area-boundary">
+        {% set total_rows = (num_questions / 3)|round(0, 'ceil')|int %}
+        {% set total_slots = total_rows * 3 %}
+        {% for idx in range(1, total_slots + 1) %}
+            {% set is_last_row = idx > (total_rows - 1) * 3 %}
+            {% if idx <= num_questions %}
+            <div class="q-item {{ 'last-row' if is_last_row else '' }}">
+                <div class="q-no">{{ idx }}</div>
+                <div class="bubble-group">
+                    <div class="bubble">A</div>
+                    <div class="bubble">B</div>
+                    <div class="bubble">C</div>
+                    <div class="bubble">D</div>
+                </div>
+            </div>
+            {% else %}
+            <div class="q-item empty {{ 'last-row' if is_last_row else '' }}"></div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Footer Area -->
+    <div class="footer">
+        <div class="sig-container">
+            <div class="sig-line"></div>
+            <div class="sig-label">Candidate's Signature</div>
+        </div>
+        <div class="sig-container">
+            <div class="sig-line"></div>
+            <div class="sig-label">Invigilator's Signature</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
