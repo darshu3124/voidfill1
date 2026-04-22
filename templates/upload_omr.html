@@ -23,8 +23,10 @@
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Question Paper Code</label>
                         <div class="input-group">
-                            <input type="text" id="paper_number_input" name="paper_number" class="form-control border-2 text-uppercase font-weight-bold" placeholder="e.g. ABC-12">
-                            <button type="button" id="btn_verify_paper" class="btn btn-outline-primary border-2"><i class="bi bi-search"></i></button>
+                            <input type="text" id="paper_number_input" name="paper_number"
+                                class="form-control border-2 text-uppercase font-weight-bold" placeholder="e.g. ABC-12">
+                            <button type="button" id="btn_verify_paper" class="btn btn-outline-primary border-2"><i
+                                    class="bi bi-search"></i></button>
                         </div>
                         <small id="paper_hint" class="form-text text-muted"></small>
                     </div>
@@ -62,7 +64,7 @@
                     async function verifyPaper() {
                         const code = paperInput.value.trim();
                         if (!code) return;
-                        
+
                         btnVerify.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
                         try {
                             const resp = await fetch(`/api/paper_info/${code}`);
@@ -82,7 +84,7 @@
                     }
 
                     btnVerify.addEventListener('click', verifyPaper);
-                    paperInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') { e.preventDefault(); verifyPaper(); } });
+                    paperInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); verifyPaper(); } });
                 </script>
 
                 <hr>
@@ -117,19 +119,20 @@
                             <input type="hidden" name="paper_number" class="target_paper_number">
 
                             <div class="mb-4 text-center">
-                                <div class="file-upload-wrapper mb-3" onclick="document.getElementById('omr_image').click()">
+                                <div class="file-upload-wrapper mb-3"
+                                    onclick="document.getElementById('omr_image').click()">
                                     <div class="file-upload-design">
                                         <i class="bi bi-cloud-arrow-up fs-1 mb-2"></i>
                                         <h5 class="mb-1">Click to Select OMR Sheet</h5>
                                         <p class="text-dim small mb-0" id="file-name-display">No file chosen</p>
                                     </div>
-                                    <input type="file" id="omr_image" name="omr_image" accept="image/*"
-                                        required style="display: none;"
-                                        onchange="updateFileName(this)">
+                                    <input type="file" id="omr_image" name="omr_image" accept="image/*" required
+                                        style="display: none;" onchange="updateFileName(this)">
                                 </div>
-                                
+
                                 <!-- Dedicated Mobile Camera Button -->
-                                <button type="button" class="btn btn-outline-info w-100 rounded-3 py-2 d-md-none" onclick="document.getElementById('omr_image_camera').click()">
+                                <button type="button" class="btn btn-outline-info w-100 rounded-3 py-2 d-md-none"
+                                    onclick="document.getElementById('omr_image_camera').click()">
                                     <i class="bi bi-camera"></i> Take Photo with Mobile Camera
                                 </button>
                                 <input type="file" id="omr_image_camera" name="omr_image_camera_dummy" accept="image/*"
@@ -153,27 +156,32 @@
                                 <video id="video" width="100%" height="auto" autoplay playsinline muted
                                     class="rounded"></video>
                                 <canvas id="canvas" style="display:none;"></canvas>
-                                
+
                                 <!-- Insecure Context Warning (Visible if HTTP) -->
-                                <div id="insecure_warning" class="p-3 text-center" style="display: none; z-index: 20; color: white; background: rgba(0,0,0,0.8); border-radius: 15px;">
+                                <div id="insecure_warning" class="p-3 text-center"
+                                    style="display: none; z-index: 20; color: white; background: rgba(0,0,0,0.8); border-radius: 15px;">
                                     <i class="bi bi-shield-lock-fill fs-2 text-warning mb-2 d-block"></i>
                                     <h6 class="mb-2">Secure Context Required (HTTPS)</h6>
                                     <p class="x-small text-dim mb-3" style="font-size: 0.85rem; line-height: 1.4;">
-                                        Modern browsers block camera access on <strong>HTTP</strong> links (like your local IP). 
+                                        Modern browsers block camera access on <strong>HTTP</strong> links (like your
+                                        local IP).
                                         To enable <strong>Live Smart Scan</strong>, you must use a secure link.
                                     </p>
-                                    
+
                                     {% if ngrok_url %}
                                     <div class="d-flex flex-column align-items-center mb-3">
                                         <div id="qrcode" class="p-2 bg-white rounded shadow-sm mb-2"></div>
-                                        <a href="{{ ngrok_url }}" class="btn btn-primary btn-sm rounded-pill px-4" target="_blank">
+                                        <a href="{{ ngrok_url }}" class="btn btn-primary btn-sm rounded-pill px-4"
+                                            target="_blank">
                                             <i class="bi bi-box-arrow-up-right me-1"></i> Open Secure Scan Link
                                         </a>
-                                        <p class="mt-2 text-warning" style="font-size: 0.7rem;">Scan this QR code with your phone!</p>
+                                        <p class="mt-2 text-warning" style="font-size: 0.7rem;">Scan this QR code with
+                                            your phone!</p>
                                     </div>
                                     {% else %}
                                     <div class="alert alert-warning py-2 mb-3" style="font-size: 0.75rem;">
-                                        <i class="bi bi-terminal"></i> <strong>Admin Fix:</strong> Run <code>ngrok http 5000</code> in your terminal to get a secure HTTPS link.
+                                        <i class="bi bi-terminal"></i> <strong>Admin Fix:</strong> Run
+                                        <code>ngrok http 5000</code> in your terminal to get a secure HTTPS link.
                                     </div>
                                     <button class="btn btn-warning btn-sm" onclick="location.reload()">
                                         <i class="bi bi-arrow-clockwise"></i> Refresh Status
@@ -195,11 +203,14 @@
                             <div class="d-grid gap-2">
                                 <button id="snap" class="btn btn-primary btn-lg"><i class="bi bi-circle-fill"></i>
                                     Capture & Evaluate</button>
-                                
-                                <button id="native_scan_btn" class="btn btn-warning border-0 text-dark fw-bold" style="display: none;" onclick="document.getElementById('omr_image_native').click()">
+
+                                <button id="native_scan_btn" class="btn btn-warning border-0 text-dark fw-bold"
+                                    style="display: none;"
+                                    onclick="document.getElementById('omr_image_native').click()">
                                     <i class="bi bi-camera"></i> Open Native Camera (Fix)
                                 </button>
-                                <input type="file" id="omr_image_native" accept="image/*" capture="environment" style="display: none;" onchange="handleNativeCapture(this)">
+                                <input type="file" id="omr_image_native" accept="image/*" capture="environment"
+                                    style="display: none;" onchange="handleNativeCapture(this)">
 
                                 <button class="btn btn-outline-secondary btn-sm" onclick="stopCamera()">Stop
                                     Camera</button>
@@ -289,10 +300,10 @@
 
         try {
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { 
-                    facingMode: "environment", 
-                    width: { ideal: 1280 }, 
-                    height: { ideal: 720 } 
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
                 }
             });
             video.srcObject = stream;
@@ -330,13 +341,13 @@
             nativeBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing OMR...';
         }
 
-        fetch('{{ url_for("upload_omr") }}', { 
-            method: 'POST', 
-            body: formData 
+        fetch('{{ url_for("upload_omr") }}', {
+            method: 'POST',
+            body: formData
         }).then(response => {
             if (response.redirected) window.location.href = response.url;
-            else { 
-                alert("Evaluation failed. Make sure the OMR sheet is well-aligned and lit."); 
+            else {
+                alert("Evaluation failed. Make sure the OMR sheet is well-aligned and lit.");
                 if (nativeBtn) {
                     nativeBtn.disabled = false;
                     nativeBtn.innerHTML = '<i class="bi bi-camera"></i> Open Native Camera (Fix)';
@@ -353,15 +364,15 @@
 
     function handleNativeCaptureOnUpload(input) {
         if (!input.files || !input.files[0]) return;
-        
+
         // Sync to the main upload form input
         const mainInput = document.getElementById('omr_image');
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(input.files[0]);
         mainInput.files = dataTransfer.files;
-        
+
         updateFileName(mainInput);
-        
+
         // Auto-submit form if selections are made
         if (studentSelect.value && subjectSelect.value) {
             document.getElementById('uploadForm').requestSubmit();
@@ -467,9 +478,9 @@
         text: "{{ ngrok_url }}",
         width: 110,
         height: 110,
-        colorDark : "#000000",
-        colorLight : "#ffffff",
-        correctLevel : QRCode.CorrectLevel.H
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
     });
     {% endif %}
 </script>

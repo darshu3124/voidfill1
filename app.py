@@ -105,10 +105,11 @@ class EmailOTP(db.Model):
 class AnswerKey(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
+    exam_name = db.Column(db.String(100), nullable=False, default='Exam 1')
     question_number = db.Column(db.Integer, nullable=False)
     correct_option = db.Column(db.String(1), nullable=False)
     
-    __table_args__ = (db.UniqueConstraint('subject_id', 'question_number', name='uq_subject_question'),)
+    __table_args__ = (db.UniqueConstraint('subject_id', 'exam_name', 'question_number', name='uq_subject_exam_question'),)
 
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -126,7 +127,7 @@ class Paper(db.Model):
     paper_number = db.Column(db.String(10), unique=True, nullable=False) # Pattern ABC-12
     subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=get_ist_now)
-    # This stores the SHUFFLED state for archival
+    # This stores the questions state for archival
     questions_json = db.Column(db.Text, nullable=False) 
     answer_key_json = db.Column(db.Text, nullable=False)
     
@@ -965,15 +966,17 @@ def admin_finalize_paper():
     shuffled_questions = []
     simple_answer_key = [] # Just list of options for the separate view
     
+    subject_id_int = int(subject_id)
     for i, q in enumerate(questions):
         opts = q['options']
-        random.shuffle(opts)
+        # No shuffling per user request
         
-        # Determine new correct identifier
-        new_correct_id = 'A'
+        # The correct identifier is already determined by the original order A, B, C, D
+        # We find which index matches the correct_value to be sure, although A/B/C/D is fixed mapping
+        correct_id = 'A'
         for idx, opt in enumerate(opts):
             if opt['text'] == q['correct_value']:
-                new_correct_id = chr(65 + idx) # A, B, C, D
+                correct_id = chr(65 + idx) # A, B, C, D
                 break
         
         # Store for display
@@ -981,16 +984,16 @@ def admin_finalize_paper():
             'num': i+1,
             'text': q['text'],
             'options': opts,
-            'correct': new_correct_id
+            'correct': correct_id
         })
-        simple_answer_key.append({'q': i+1, 'ans': new_correct_id})
+        simple_answer_key.append({'q': i+1, 'ans': correct_id})
         
         # Update OMR AnswerKey (Current subject context)
-        key = AnswerKey.query.filter_by(subject_id=subject_id, question_number=i+1).first()
+        key = AnswerKey.query.filter_by(subject_id=subject_id_int, question_number=i+1).first()
         if key:
-            key.correct_option = new_correct_id
+            key.correct_option = correct_id
         else:
-            key = AnswerKey(subject_id=subject_id, question_number=i+1, correct_option=new_correct_id)
+            key = AnswerKey(subject_id=subject_id_int, question_number=i+1, correct_option=correct_id)
             db.session.add(key)
             
     # Create the Paper entry
@@ -1090,4 +1093,5 @@ if __name__ == '__main__':
         print("      the Live Camera Scanner on your phone.")
     print("="*50 + "\n")
 
+    app.run(host='0.0.0.0', port=5000, debug=True)
     app.run(host='0.0.0.0', port=5000, debug=True)

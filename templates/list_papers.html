@@ -4,10 +4,12 @@
     <div class="row align-items-center mb-5 border-bottom border-light border-opacity-10 pb-4">
         <div class="col-md-9">
             <h1 class="display-5 font-weight-bold text-info"><i class="bi bi-stack mr-3"></i>Paper Archive</h1>
-            <p class="text-muted small text-uppercase letter-spacing-1">Historical list of generated and shuffled question papers</p>
+            <p class="text-muted small text-uppercase letter-spacing-1">Historical list of generated question papers</p>
         </div>
         <div class="col-md-3 text-right">
-            <a href="{{ url_for('admin_generate_paper') }}" class="btn btn-primary btn-sm rounded-pill px-4 shadow hover-pop fw-bold"><i class="bi bi-plus-circle mr-2"></i>New Paper</a>
+            <a href="{{ url_for('admin_generate_paper') }}"
+                class="btn btn-primary btn-sm rounded-pill px-4 shadow hover-pop fw-bold"><i
+                    class="bi bi-plus-circle mr-2"></i>New Paper</a>
         </div>
     </div>
 
@@ -24,16 +26,24 @@
             <tbody>
                 {% for p in papers %}
                 <tr class="border-bottom border-light border-opacity-10">
-                    <td class="ps-4"><span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 py-2 font-weight-bold shadow-sm" style="font-size: 1.1rem; letter-spacing: 1px;">{{ p.paper_number }}</span></td>
+                    <td class="ps-4"><span
+                            class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 py-2 font-weight-bold shadow-sm"
+                            style="font-size: 1.1rem; letter-spacing: 1px;">{{ p.paper_number }}</span></td>
                     <td>
                         <div class="fw-bold text-white fs-6 h5">{{ p.subject_rel.name }}</div>
                     </td>
                     <td class="text-muted small font-monospace">{{ p.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td class="text-end pe-4">
                         <div class="btn-group shadow-sm">
-                            <a href="{{ url_for('admin_view_paper', paper_id=p.id) }}" class="btn btn-sm btn-dark border-light border-opacity-10 action-btn" data-bs-toggle="tooltip" title="View Questions"><i class="bi bi-eye"></i></a>
-                            <a href="{{ url_for('admin_view_answer_key', paper_id=p.id) }}" class="btn btn-sm btn-dark border-light border-opacity-10 text-success action-btn-success" data-bs-toggle="tooltip" title="View Key"><i class="bi bi-key-fill"></i></a>
-                            <a href="{{ url_for('admin_generate_omr', paper_id=p.id) }}" class="btn btn-sm btn-dark border-light border-opacity-10 text-info action-btn-info" data-bs-toggle="tooltip" title="Generate OMR"><i class="bi bi-file-earmark-pdf"></i></a>
+                            <a href="{{ url_for('admin_view_paper', paper_id=p.id) }}"
+                                class="btn btn-sm btn-dark border-light border-opacity-10 action-btn"
+                                data-bs-toggle="tooltip" title="View Questions"><i class="bi bi-eye"></i></a>
+                            <a href="{{ url_for('admin_view_answer_key', paper_id=p.id) }}"
+                                class="btn btn-sm btn-dark border-light border-opacity-10 text-success action-btn-success"
+                                data-bs-toggle="tooltip" title="View Key"><i class="bi bi-key-fill"></i></a>
+                            <a href="{{ url_for('admin_generate_omr', paper_id=p.id) }}"
+                                class="btn btn-sm btn-dark border-light border-opacity-10 text-info action-btn-info"
+                                data-bs-toggle="tooltip" title="Generate OMR"><i class="bi bi-file-earmark-pdf"></i></a>
                         </div>
                     </td>
                 </tr>
@@ -59,7 +69,14 @@
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 20px;
     }
-    .action-btn-success:hover { background: rgba(25, 135, 84, 0.15); color: #2ecc71 !important; }
-    .letter-spacing-1 { letter-spacing: 1px; }
+
+    .action-btn-success:hover {
+        background: rgba(25, 135, 84, 0.15);
+        color: #2ecc71 !important;
+    }
+
+    .letter-spacing-1 {
+        letter-spacing: 1px;
+    }
 </style>
 {% endblock %}

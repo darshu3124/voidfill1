@@ -2,8 +2,8 @@
 {% block content %}
 <div class="container mt-5 mb-5 shadow-lg p-5 border-0 rounded-lg bg-white">
     <div class="alert alert-success shadow-sm p-4 mb-5 border-left-success d-print-none" role="alert">
-        <h4 class="alert-heading font-weight-bold h5 mb-2"><i class="fas fa-check-circle mr-2"></i>Paper Shuffled Successfully!</h4>
-        <p class="mb-0 small">Each original option has been shuffled randomly. The answer key has been synced.</p>
+        <h4 class="alert-heading font-weight-bold h5 mb-2"><i class="fas fa-check-circle mr-2"></i>Paper Generated Successfully!</h4>
+        <p class="mb-0 small">The question paper has been created. The answer key has been synced to the database.</p>
     </div>
     <div id="print-area">
         <div class="row align-items-center mb-5">
@@ -33,7 +33,7 @@
                         <div class="row">
                             {% for opt in q.options %}
                             <div class="col-md-6 mb-3 p-3 border rounded shadow-sm mx-auto bg-white" style="max-width: 45%;">
-                                <span class="font-weight-bold text-dark mr-2">{{ loop.index0 | string | replace('0','A') | replace('1','B') | replace('2','C') | replace('3','D') }}</span>
+                                <span class="font-weight-bold text-dark mr-2">{{ opt.id }}</span>
                                 <span class="text-dark">{{ opt.text }}</span>
                             </div>
                             {% endfor %}
