@@ -16,8 +16,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.units import inch
 import io
-from utils.otp_generator import generate_otp
-from utils.email_service import send_otp_email, send_result_email
+from utils.email_service import send_result_email
 import socket
 import zipfile
 import tempfile
@@ -78,6 +77,7 @@ login_manager.login_view = 'login'
 class Subject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
+    admin_username = db.Column(db.String(50), nullable=True, default='admin')
     answer_keys = db.relationship('AnswerKey', backref='subject_rel', lazy=True, cascade="all, delete-orphan")
     results = db.relationship('Result', backref='subject_rel', lazy=True, cascade="all, delete-orphan")
 
@@ -95,12 +95,6 @@ class Student(db.Model, UserMixin):
     created_at = db.Column(db.DateTime, default=get_ist_now)
     results = db.relationship('Result', backref='student', lazy=True)
 
-class EmailOTP(db.Model):
-    __tablename__ = 'email_otps'
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(150), nullable=False)
-    otp_code = db.Column(db.String(6), nullable=False)
-    expires_at = db.Column(db.DateTime, nullable=False)
 
 class AnswerKey(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -178,63 +172,25 @@ def student_register():
         password = request.form['password']
         
         existing_student = Student.query.filter_by(email=email).first()
-        if existing_student and existing_student.verified:
+        if existing_student:
             flash('Email already registered!', 'danger')
             return redirect(url_for('login'))
             
-        otp = generate_otp()
-        expires = get_ist_now() + timedelta(minutes=5)
-        
         try:
-            new_otp = EmailOTP(email=email, otp_code=otp, expires_at=expires)
-            db.session.add(new_otp)
-            
-            if not existing_student:
-                hashed_pw = generate_password_hash(password)
-                new_student = Student(name=name, email=email, password=hashed_pw, verified=False)
-                db.session.add(new_student)
-            else:
-                existing_student.password = generate_password_hash(password)
-                
+            hashed_pw = generate_password_hash(password)
+            new_student = Student(name=name, email=email, password=hashed_pw, verified=True)
+            db.session.add(new_student)
             db.session.commit()
             
-            send_otp_email(email, otp)
-            session['verify_email'] = email
-            flash('An OTP has been sent to your email.', 'info')
-            return redirect(url_for('verify_otp'))
+            flash('Registration successful! You can now log in.', 'success')
+            return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
             flash(f'Database exception: {e}', 'danger')
             
     return render_template('student_register.html')
 
-@app.route('/verify_otp', methods=['GET', 'POST'])
-def verify_otp():
-    if 'verify_email' not in session:
-        return redirect(url_for('student_register'))
-        
-    email = session['verify_email']
-        
-    if request.method == 'POST':
-        otp_entered = request.form['otp']
-        
-        otp_record = EmailOTP.query.filter_by(email=email, otp_code=otp_entered).filter(EmailOTP.expires_at > get_ist_now()).first()
-        
-        if otp_record:
-            student = Student.query.filter_by(email=email).first()
-            if student:
-                student.verified = True
-                db.session.commit()
-                # Clear all otps for this email
-                EmailOTP.query.filter_by(email=email).delete()
-                db.session.commit()
-                session.pop('verify_email', None)
-                flash('Email verified successfully! You can now log in.', 'success')
-                return redirect(url_for('login'))
-        else:
-            flash('Invalid or expired OTP', 'danger')
-            
-    return render_template('verify_otp.html', email=email)
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -242,21 +198,18 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # 1. Check if Admin
+        # 1. Check if Admin (Database)
         admin = Admin.query.filter_by(username=username).first()
         if admin and check_password_hash(admin.password, password):
             session['admin_id'] = admin.id
+            session['admin_username'] = admin.username
             session['role'] = 'admin'
-            flash('Logged in successfully as Admin.', 'success')
+            flash(f'Logged in successfully as Admin ({username}).', 'success')
             return redirect(url_for('admin_dashboard'))
             
         # 2. Check if Student
         student = Student.query.filter((Student.name == username) | (Student.email == username)).first()
         if student and check_password_hash(student.password, password):
-            if not student.verified:
-                flash('Please verify your email first.', 'warning')
-                return redirect(url_for('login'))
-                
             login_user(student)
             session['role'] = 'student'
             session['student_id'] = student.id
@@ -298,6 +251,12 @@ def admin_dashboard():
             flash('Please select a subject.', 'danger')
             return redirect(url_for('admin_dashboard'))
             
+        admin_user = session.get('admin_username', 'admin')
+        subj = Subject.query.get(subject_id)
+        if not subj or (admin_user != 'admin' and subj.admin_username != admin_user):
+            flash('Unauthorized to modify this subject.', 'danger')
+            return redirect(url_for('admin_dashboard'))
+            
         try:
             key = AnswerKey.query.filter_by(subject_id=subject_id, question_number=q_num).first()
             if key:
@@ -311,8 +270,18 @@ def admin_dashboard():
             db.session.rollback()
             flash(f"Error: {e}", 'danger')
             
-    subjects = Subject.query.all()
+    admin_user = session.get('admin_username', 'admin')
+    if admin_user == 'admin':
+        subjects = Subject.query.all()
+    else:
+        subjects = Subject.query.filter_by(admin_username=admin_user).all()
+        
+    subject_ids = [s.id for s in subjects]
     selected_subject_id = request.args.get('subject_id', type=int)
+    
+    if selected_subject_id and selected_subject_id not in subject_ids and admin_user != 'admin':
+        flash('Unauthorized to view this subject.', 'danger')
+        return redirect(url_for('admin_dashboard'))
     
     keys = []
     if selected_subject_id:
@@ -320,9 +289,17 @@ def admin_dashboard():
         
     # Gather Admin Dashboard Metrics
     total_students = Student.query.count()
-    total_evaluations = Result.query.count()
     
-    results_list = Result.query.all()
+    if admin_user == 'admin':
+        total_evaluations = Result.query.count()
+        results_list = Result.query.order_by(Result.date.desc()).all()
+    else:
+        if subject_ids:
+            results_list = Result.query.filter(Result.subject_id.in_(subject_ids)).order_by(Result.date.desc()).all()
+        else:
+            results_list = []
+        total_evaluations = len(results_list)
+    
     avg_score = 0
     if total_evaluations > 0:
         total_percentage = sum(r.percentage for r in results_list)
@@ -354,7 +331,8 @@ def add_subject():
     
     if full_name:
         try:
-            new_subject = Subject(name=full_name)
+            admin_user = session.get('admin_username', 'admin')
+            new_subject = Subject(name=full_name, admin_username=admin_user)
             db.session.add(new_subject)
             db.session.commit()
             flash(f'Subject/Exam "{full_name}" added.', 'success')
@@ -389,6 +367,12 @@ def bulk_answer_key():
     subject_id = request.form.get('subject_id')
     if not subject_id:
         flash('Subject ID missing.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+        
+    admin_user = session.get('admin_username', 'admin')
+    subj = Subject.query.get(subject_id)
+    if not subj or (admin_user != 'admin' and subj.admin_username != admin_user):
+        flash('Unauthorized to modify this subject.', 'danger')
         return redirect(url_for('admin_dashboard'))
         
     raw_data = request.form.get('bulk_answers', '').upper()
@@ -435,13 +419,25 @@ def clear_answer_key():
         return redirect(url_for('login'))
     
     subject_id = request.form.get('subject_id')
+    admin_user = session.get('admin_username', 'admin')
     try:
         if subject_id:
+            subj = Subject.query.get(subject_id)
+            if not subj or (admin_user != 'admin' and subj.admin_username != admin_user):
+                flash('Unauthorized to modify this subject.', 'danger')
+                return redirect(url_for('admin_dashboard'))
+                
             db.session.query(AnswerKey).filter_by(subject_id=subject_id).delete()
             msg = f'All answers for the selected subject have been cleared.'
         else:
-            db.session.query(AnswerKey).delete()
-            msg = 'All answers for all subjects have been cleared.'
+            if admin_user == 'admin':
+                db.session.query(AnswerKey).delete()
+            else:
+                user_subjects = Subject.query.filter_by(admin_username=admin_user).all()
+                user_subj_ids = [s.id for s in user_subjects]
+                if user_subj_ids:
+                    db.session.query(AnswerKey).filter(AnswerKey.subject_id.in_(user_subj_ids)).delete()
+            msg = 'All answers for all your subjects have been cleared.'
             
         db.session.commit()
         flash(msg, 'success')
@@ -453,13 +449,15 @@ def evaluate_single_omr(upload_path, filename, student, subject_id):
     processed_filename = f"processed_{filename.rsplit('.', 1)[0]}.jpg"
     processed_path = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
     
-    # Process the OMR sheet to get selected answers
-    _, total_q, selected, final_path = process_omr(upload_path, processed_path)
+    # Prepare answer key for color-coded processing
+    keys = AnswerKey.query.filter_by(subject_id=subject_id).all()
+    answer_key = {f"Q{k.question_number}": k.correct_option.upper() for k in keys}
+
+    # Process the OMR sheet with visual feedback colorization
+    _, total_q, selected, final_path = process_omr(upload_path, processed_path, answer_key=answer_key)
     
     # Calculate score based on the actual answer key
     score = 0
-    keys = AnswerKey.query.filter_by(subject_id=subject_id).all()
-    answer_key = {f"Q{k.question_number}": k.correct_option for k in keys}
     
     for q_label, student_ans in selected.items():
         if q_label in answer_key and student_ans == answer_key[q_label]:
@@ -624,7 +622,12 @@ def upload_omr():
         return redirect(url_for('login'))
         
     students = Student.query.all()
-    subjects = Subject.query.all()
+    
+    admin_user = session.get('admin_username', 'admin')
+    if admin_user == 'admin':
+        subjects = Subject.query.all()
+    else:
+        subjects = Subject.query.filter_by(admin_username=admin_user).all()
     
     if request.method == 'POST':
         student_id = request.form.get('student_id')
@@ -763,6 +766,12 @@ def upload_key_image():
         flash('Please select a subject first.', 'danger')
         return redirect(url_for('admin_dashboard'))
         
+    admin_user = session.get('admin_username', 'admin')
+    subj = Subject.query.get(subject_id)
+    if not subj or (admin_user != 'admin' and subj.admin_username != admin_user):
+        flash('Unauthorized to modify this subject.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+        
     if 'key_image' not in request.files:
         flash('No file part', 'danger')
         return redirect(url_for('admin_dashboard', subject_id=subject_id))
@@ -799,6 +808,40 @@ def upload_key_image():
         flash(f'Error extracting key: {str(e)}', 'danger')
         
     return redirect(url_for('admin_dashboard', subject_id=subject_id))
+
+@app.route('/admin/all_results')
+def admin_all_results():
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    results = Result.query.order_by(Result.date.desc()).all()
+    return render_template('all_results.html', results=results)
+
+@app.route('/admin/delete_result/<int:result_id>', methods=['POST'])
+def admin_delete_result(result_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    result = Result.query.get_or_404(result_id)
+    try:
+        db.session.delete(result)
+        db.session.commit()
+        flash('Result deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting result: {e}', 'danger')
+    return redirect(request.referrer or url_for('admin_dashboard'))
+
+@app.route('/admin/delete_all_results', methods=['POST'])
+def admin_delete_all_results():
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    try:
+        Result.query.delete()
+        db.session.commit()
+        flash('All scanner logs have been cleared.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error clearing logs: {e}', 'danger')
+    return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/admin/result/<int:result_id>', endpoint='admin_view_result')
@@ -1020,6 +1063,87 @@ def admin_list_papers():
     papers = Paper.query.order_by(Paper.created_at.desc()).all()
     return render_template('list_papers.html', papers=papers)
 
+@app.route('/admin/delete_paper/<int:paper_id>', methods=['POST'])
+def admin_delete_paper(paper_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    paper = Paper.query.get_or_404(paper_id)
+    try:
+        Question.query.filter_by(paper_id=paper_id).delete()
+        db.session.delete(paper)
+        db.session.commit()
+        flash(f'Paper {paper.paper_number} deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting paper: {e}', 'danger')
+        
+    return redirect(url_for('admin_list_papers'))
+
+@app.route('/admin/delete_all_papers', methods=['POST'])
+def admin_delete_all_papers():
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    try:
+        # Delete related questions first to avoid FK constraint issues if any exist
+        db.session.query(Question).filter(Question.paper_id.isnot(None)).delete()
+        num_deleted = db.session.query(Paper).delete()
+        db.session.commit()
+        flash(f'All {num_deleted} papers deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting papers: {e}', 'danger')
+        
+    return redirect(url_for('admin_list_papers'))
+
+@app.route('/admin/delete_subject/<int:subject_id>', methods=['POST'])
+def admin_delete_subject(subject_id):
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    subject = Subject.query.get_or_404(subject_id)
+    try:
+        # Delete related questions for all papers in this subject
+        papers = Paper.query.filter_by(subject_id=subject.id).all()
+        paper_ids = [p.id for p in papers]
+        if paper_ids:
+            Question.query.filter(Question.paper_id.in_(paper_ids)).delete(synchronize_session=False)
+            
+        # Delete related papers
+        Paper.query.filter_by(subject_id=subject.id).delete(synchronize_session=False)
+        
+        # Delete related standalone questions for this subject
+        Question.query.filter_by(subject_id=subject.id).delete(synchronize_session=False)
+        
+        db.session.delete(subject)
+        db.session.commit()
+        flash(f'Subject "{subject.name}" deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting subject: {e}', 'danger')
+        
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/delete_all_subjects', methods=['POST'])
+def admin_delete_all_subjects():
+    if session.get('role') != 'admin':
+        return redirect(url_for('login'))
+        
+    try:
+        Question.query.delete()
+        Paper.query.delete()
+        AnswerKey.query.delete()
+        Result.query.delete()
+        num_deleted = db.session.query(Subject).delete()
+        db.session.commit()
+        flash(f'All {num_deleted} subjects and related data deleted successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting all subjects: {e}', 'danger')
+        
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/admin/view_paper/<int:paper_id>')
 def admin_view_paper(paper_id):
     if session.get('role') != 'admin':
@@ -1093,5 +1217,4 @@ if __name__ == '__main__':
         print("      the Live Camera Scanner on your phone.")
     print("="*50 + "\n")
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)

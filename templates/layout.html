@@ -45,15 +45,21 @@
                             href="{{ url_for('admin_answer_key') }}">
                             <i class="bi bi-key-fill me-1"></i> Answer Key
                         </a></li>
-                    <li class="nav-item ms-lg-2">
+                    <li class="nav-item ms-lg-2 me-lg-2">
                         <a class="btn btn-outline-info rounded-pill px-4 text-white hover-glow"
                             href="{{ url_for('upload_omr') }}">
                             <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload OMR
                         </a>
                     </li>
+                    <li class="nav-item d-flex align-items-center ms-lg-2">
+                        <span class="nav-link fw-bold text-white px-0 me-3">Hello, {{ session.get('admin_username') or 'Admin' }}</span>
+                    </li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
                     {% elif session.get('role') == 'student' %}
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('student_dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item d-flex align-items-center ms-lg-2">
+                        <span class="nav-link fw-bold text-white px-0 me-3">Hello, {{ current_user.name }}</span>
                     </li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
                     {% else %}

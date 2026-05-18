@@ -71,7 +71,7 @@ def collect_selected_answers(image):
     # Preprocessing
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                   cv2.THRESH_BINARY_INV, 31, 15)
+                                   cv2.THRESH_BINARY_INV, 31, 20)
 
     # 1. Find ALL circles on the page (must use LIST or TREE to find them inside boxes)
     cnts, _ = cv2.findContours(thresh.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -143,7 +143,8 @@ def collect_selected_answers(image):
         rows.append(sorted(curr_row, key=lambda b: b['center'][0]))
 
     student_answers = {}
-    validated_bubble_coords = []
+    bubble_metadata = {} # Stores coords per question
+    shaded_metadata = {} # Stores which options were shaded per question
     total_q_found = 0
     
     # 4. Group row items into clusters of 4
@@ -164,14 +165,24 @@ def collect_selected_answers(image):
                         mask_pixels = cv2.countNonZero(mask)
                         filled_pixels = cv2.countNonZero(cv2.bitwise_and(thresh, thresh, mask=mask))
                         pixel_vals.append((filled_pixels / mask_pixels) * 100)
-                        validated_bubble_coords.append(b['center'])
                     
                     total_q_found += 1
                     q_label = f"Q{total_q_found}"
+                    bubble_metadata[q_label] = [b['center'] for b in group]
+                    
                     # --- FINAL ROBUST SELECTION LOGIC ---
                     max_idx = pixel_vals.index(max(pixel_vals))
                     sorted_vals = sorted(pixel_vals, reverse=True)
                     best_fill = max(pixel_vals)
+
+                    # Track which bubbles in this group are actually shaded
+                    # (Must be high absolute fill AND close to the best fill in this row)
+                    shaded_this_q = []
+                    if best_fill >= 45:
+                        for idx, fill in enumerate(pixel_vals):
+                            if fill >= 45 and (fill / best_fill) >= 0.8:
+                                shaded_this_q.append(chr(65 + idx))
+                    shaded_metadata[q_label] = shaded_this_q
                     
                     if best_fill < 45: # Must be at least 45% filled to count as any selection
                         student_answers[q_label] = "BLANK"
@@ -189,11 +200,12 @@ def collect_selected_answers(image):
             else:
                 break
 
-    # Store validated coords for visual feedback
-    student_answers["_validated_bubbles"] = validated_bubble_coords
+    # Store metadata for visual feedback
+    student_answers["_bubble_metadata"] = bubble_metadata
+    student_answers["_shaded_metadata"] = shaded_metadata
     return student_answers
 
-def process_omr(image_path, output_path):
+def process_omr(image_path, output_path, answer_key=None):
     """Interface for app.py with strict, isolated visual feedback."""
     image = cv2.imread(image_path)
     if image is None: return 0, 0, {}, ""
@@ -204,8 +216,9 @@ def process_omr(image_path, output_path):
         cv2.imwrite(output_path, warped)
         return 0, 0, {}, output_path
 
-    # Extract validated bubbles and remove metadata before returning to app.py
-    validated_bubbles = results.pop("_validated_bubbles", [])
+    # Extract bubble groups and remove metadata before returning to app.py
+    bubble_metadata = results.pop("_bubble_metadata", {})
+    shaded_metadata = results.pop("_shaded_metadata", {})
     
     qr_data = None
     try:
@@ -215,9 +228,34 @@ def process_omr(image_path, output_path):
     except: pass
     if qr_data: results["_qr_code"] = qr_data
 
-    # Drawing feedback: Highlight ONLY bubbles that were actually part of a validated question
-    for (cx, cy) in validated_bubbles:
-        cv2.circle(warped, (cx, cy), 15, (255, 0, 0), 2)
+    # Drawing feedback: Highlight based on correctness if answer_key is provided
+    for q_label, coords in bubble_metadata.items():
+        student_ans = results.get(q_label)
+        correct_ans = answer_key.get(q_label) if answer_key else None
+        shaded_opts = shaded_metadata.get(q_label, [])
+        
+        for i, (cx, cy) in enumerate(coords):
+            opt = chr(65 + i)
+            
+            if not answer_key:
+                # If no key, just show detected options in Blue
+                cv2.circle(warped, (cx, cy), 15, (255, 0, 0), 2)
+                continue
+
+            # With Answer Key: ONLY draw relevant feedback
+            is_shaded = opt in shaded_opts
+            
+            if is_shaded:
+                # 1. If it's correct AND it's the ONLY thing shaded -> Green
+                if opt == correct_ans and student_ans != "INVALID":
+                    cv2.circle(warped, (cx, cy), 15, (0, 255, 0), 3)
+                else:
+                    # 2. If it's shaded but wrong OR part of INVALID (multiple) -> Red
+                    cv2.circle(warped, (cx, cy), 15, (0, 0, 255), 3)
+            elif opt == correct_ans:
+                # 3. If it's the correct answer but the student missed it -> Blue
+                cv2.circle(warped, (cx, cy), 15, (255, 0, 0), 3)
+            # Else: Skip drawing for unshaded, incorrect bubbles to keep UI clean
     
     cv2.imwrite(output_path, warped)
     q_count = len([k for k in results if k.startswith("Q")])

@@ -6,7 +6,12 @@
             <h1 class="display-5 font-weight-bold text-info"><i class="bi bi-stack mr-3"></i>Paper Archive</h1>
             <p class="text-muted small text-uppercase letter-spacing-1">Historical list of generated question papers</p>
         </div>
-        <div class="col-md-3 text-right">
+        <div class="col-md-3 text-right d-flex justify-content-end align-items-center" style="gap: 10px;">
+            <form action="{{ url_for('admin_delete_all_papers') }}" method="POST" onsubmit="return confirm('Are you sure you want to delete ALL papers? This action cannot be undone.');" style="margin: 0;">
+                <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4 shadow hover-pop fw-bold">
+                    <i class="bi bi-trash mr-2"></i>Delete All
+                </button>
+            </form>
             <a href="{{ url_for('admin_generate_paper') }}"
                 class="btn btn-primary btn-sm rounded-pill px-4 shadow hover-pop fw-bold"><i
                     class="bi bi-plus-circle mr-2"></i>New Paper</a>
@@ -44,6 +49,9 @@
                             <a href="{{ url_for('admin_generate_omr', paper_id=p.id) }}"
                                 class="btn btn-sm btn-dark border-light border-opacity-10 text-info action-btn-info"
                                 data-bs-toggle="tooltip" title="Generate OMR"><i class="bi bi-file-earmark-pdf"></i></a>
+                            <form action="{{ url_for('admin_delete_paper', paper_id=p.id) }}" method="POST" style="display: inline-block;">
+                                <button type="submit" class="btn btn-sm btn-dark border-light border-opacity-10 text-danger action-btn-danger" style="border-top-left-radius: 0; border-bottom-left-radius: 0;" data-bs-toggle="tooltip" title="Delete Paper"><i class="bi bi-trash"></i></button>
+                            </form>
                         </div>
                     </td>
                 </tr>
@@ -73,6 +81,11 @@
     .action-btn-success:hover {
         background: rgba(25, 135, 84, 0.15);
         color: #2ecc71 !important;
+    }
+
+    .action-btn-danger:hover {
+        background: rgba(220, 53, 69, 0.15);
+        color: #e74c3c !important;
     }
 
     .letter-spacing-1 {

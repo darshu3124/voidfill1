@@ -20,6 +20,15 @@ def migrate():
             print("Creating subject table...")
             db.create_all() # This creates all tables that don't exist
 
+        # Check if admin_username exists in subject
+        cursor.execute("PRAGMA table_info(subject)")
+        columns = [c[1] for c in cursor.fetchall()]
+        if 'admin_username' not in columns:
+            print("Adding admin_username to subject table...")
+            cursor.execute("ALTER TABLE subject ADD COLUMN admin_username VARCHAR(50) DEFAULT 'admin'")
+            conn.commit()
+            print("Migration complete for admin_username.")
+
         # Check if subject_id exists in answer_key
         cursor.execute("PRAGMA table_info(answer_key)")
         columns = [c[1] for c in cursor.fetchall()]
