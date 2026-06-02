@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMR-GRADELINE: Project Poster</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #102a43;
+            --primary-light: #183d5d;
+            --secondary: #0066cc;
+            --accent-green: #20c997;
+            --accent-orange: #f76707;
+            --accent-pink: #d6336c;
+            --accent-teal: #0ca678;
+            --background: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-dark: #212529;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --success-color: #2b8a3e;
+            --error-color: #c92a2a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #eceff1;
+            color: var(--text-dark);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* A3 Poster Landscape Aspect Ratio Container */
+        .poster-container {
+            width: 1414px;
+            height: 1000px;
+            background-color: var(--card-bg);
+            border: 4px solid var(--primary);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ==================== HEADER ==================== */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 25px;
+            border-radius: 6px;
+            height: 90px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .header-logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            width: 250px;
+        }
+
+        .header-logo {
+            background-color: white;
+            width: 55px;
+            height: 55px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .header-logo svg {
+            width: 35px;
+            height: 35px;
+            fill: var(--secondary);
+        }
+
+        .header-logo-text h2 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 20px;
+            letter-spacing: 1px;
+            color: white;
+        }
+
+        .header-logo-text p {
+            font-size: 10px;
+            opacity: 0.8;
+            letter-spacing: 0.5px;
+        }
+
+        .header-title-section {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .header-title-section h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 34px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(to right, #ffffff, #82b1ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title-section p {
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 3px;
+            color: #82b1ff;
+            letter-spacing: 0.5px;
+        }
+
+        .header-title-section .tagline {
+            font-size: 11px;
+            font-style: italic;
+            font-weight: 300;
+            opacity: 0.85;
+            color: white;
+            margin-top: 2px;
+        }
+
+        .header-graphics {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            width: 250px;
+        }
+
+        .header-graphics svg {
+            width: 55px;
+            height: 55px;
+            fill: rgba(255, 255, 255, 0.9);
+        }
+
+        /* ==================== POSTER GRID ==================== */
+        .poster-body {
+            display: grid;
+            grid-template-columns: 310px 1fr 310px;
+            gap: 12px;
+            flex-grow: 1;
+            height: calc(100% - 135px);
+        }
+
+        /* Common Section Box Styles */
+        .section-box {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--card-bg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            margin-bottom: 10px;
+        }
+
+        .section-header {
+            color: white;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .section-header svg {
+            width: 14px;
+            height: 14px;
+            fill: white;
+        }
+
+        .section-content {
+            padding: 10px;
+            font-size: 10.5px;
+            line-height: 1.4;
+            flex-grow: 1;
+        }
+
+        /* Section colors */
+        .bg-navy { background-color: var(--primary); }
+        .bg-blue { background-color: var(--secondary); }
+        .bg-green { background-color: var(--accent-teal); }
+        .bg-orange { background-color: var(--accent-orange); }
+        .bg-pink { background-color: var(--accent-pink); }
+        .bg-purple { background-color: #673ab7; }
+        .bg-red { background-color: var(--error-color); }
+
+        /* ==================== LEFT COLUMN ==================== */
+        .left-column {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .desc-text {
+            color: #333;
+            text-align: justify;
+            margin-bottom: 5px;
+        }
+
+        .features-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .features-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .features-list li svg {
+            width: 12px;
+            height: 12px;
+            fill: var(--accent-teal);
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .tech-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .tech-item {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px dashed #eee;
+            padding-bottom: 4px;
+        }
+
+        .tech-item:last-child {
+            border-bottom: none;
+        }
+
+        .tech-label {
+            font-weight: 700;
+            width: 90px;
+            color: var(--primary);
+            font-size: 9.5px;
+        }
+
+        .tech-val {
+            color: #555;
+            font-size: 9.5px;
+        }
+
+        /* ==================== CENTER COLUMN ==================== */
+        .center-column {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Workflow Flowcharts */
+        .flow-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            background-color: #fafbfc;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 10px 5px;
+        }
+
+        .flow-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 6px;
+        }
+
+        .flow-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .flow-node {
+            background-color: white;
+            border: 1.5px solid var(--border-color);
+            border-radius: 5px;
+            padding: 6px 10px;
+            text-align: center;
+            font-size: 9.5px;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            min-width: 110px;
+            max-width: 160px;
+            position: relative;
+        }
+
+        .node-primary { border-color: var(--secondary); background-color: #e8f4fd; }
+        .node-green { border-color: var(--accent-teal); background-color: #e6fcf5; }
+        .node-orange { border-color: var(--accent-orange); background-color: #fff4e6; }
+        .node-pink { border-color: var(--accent-pink); background-color: #fff0f6; }
+        .node-purple { border-color: #7048e8; background-color: #f3f0ff; }
+
+        .flow-node-title {
+            font-size: 8px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .flow-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--text-muted);
+        }
+
+        /* Complex Workflow Split Grid */
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .role-card {
+            background-color: white;
+            border: 1.5px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .role-card-header {
+            color: white;
+            font-size: 9.5px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .role-card ul {
+            list-style: none;
+            padding-left: 5px;
+        }
+
+        .role-card ul li {
+            font-size: 8.5px;
+            position: relative;
+            padding-left: 10px;
+            margin-bottom: 3px;
+        }
+
+        .role-card ul li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--secondary);
+            font-weight: bold;
+        }
+
+        /* Benefits Footer */
+        .benefits-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .benefit-card {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 6px;
+            text-align: center;
+        }
+
+        .benefit-icon {
+            font-size: 14px;
+            margin-bottom: 3px;
+        }
+
+        .benefit-card h4 {
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--primary);
+            margin-bottom: 2px;
+        }
+
+        .benefit-card p {
+            font-size: 7.5px;
+            color: #555;
+            line-height: 1.2;
+        }
+
+        /* ==================== RIGHT COLUMN ==================== */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .module-block {
+            margin-bottom: 8px;
+            border-left: 3px solid var(--secondary);
+            padding-left: 8px;
+        }
+
+        .module-block-title {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .module-num {
+            background-color: var(--secondary);
+            color: white;
+            font-size: 8px;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
+        .module-block ul {
+            list-style: none;
+            padding-left: 5px;
+        }
+
+        .module-block ul li {
+            font-size: 8.5px;
+            margin-bottom: 2px;
+            color: #444;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .module-block ul li::before {
+            content: "▹";
+            color: var(--secondary);
+            font-weight: bold;
+        }
+
+        /* Unique Feature Flow Block */
+        .feature-flow {
+            background-color: #fff9db;
+            border: 1.5px solid #f59f00;
+            border-radius: 6px;
+            padding: 8px;
+            margin-top: 5px;
+        }
+
+        .feature-flow-title {
+            font-size: 9px;
+            font-weight: 800;
+            color: #f76707;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .feature-flow-steps {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .feature-step {
+            background-color: white;
+            border: 1px solid #ffe066;
+            border-radius: 4px;
+            padding: 4px;
+            text-align: center;
+            font-size: 7.5px;
+            font-weight: 600;
+            flex-grow: 1;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .feature-arrow {
+            font-size: 8px;
+            font-weight: bold;
+            color: #f59f00;
+        }
+
+        /* ==================== FOOTER ==================== */
+        .footer {
+            background-color: var(--primary);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 25px;
+            border-radius: 6px;
+            height: 35px;
+            font-size: 9.5px;
+            font-weight: 600;
+            margin-top: auto;
+        }
+
+        .footer-left {
+            letter-spacing: 0.5px;
+        }
+
+        .footer-center {
+            opacity: 0.8;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .footer-right {
+            color: #82b1ff;
+        }
+
+        /* ==================== SVGS ==================== */
+        .icon svg {
+            width: 14px;
+            height: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="poster-container">
+        
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-logo-section">
+                <div class="header-logo">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm3-4H7v-2h8v2zm0-4H7V7h8v2z"/>
+                    </svg>
+                </div>
+                <div class="header-logo-text">
+                    <h2>OMR-GRADELINE</h2>
+                    <p>Computer Vision Solutions</p>
+                </div>
+            </div>
+            
+            <div class="header-title-section">
+                <h1>OMR-GRADELINE</h1>
+                <p>INTELLIGENT OMR SCANNING & EVALUATION PLATFORM</p>
+                <div class="tagline">Streamlining Answer Sheet Rectification, Grading, and Performance Analytics through Computer Vision</div>
+            </div>
+            
+            <div class="header-graphics">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- POSTER BODY -->
+        <div class="poster-body">
+            
+            <!-- LEFT COLUMN -->
+            <div class="left-column">
+                
+                <!-- Project Description -->
+                <div class="section-box" style="flex: 1.1;">
+                    <div class="section-header bg-navy">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                        Project Description
+                    </div>
+                    <div class="section-content">
+                        <p class="desc-text">
+                            <strong>OMR-Gradeline</strong> is a high-performance web application designed to automate and streamline exam evaluation using standard digital images of bubble sheets.
+                        </p>
+                        <p class="desc-text">
+                            By leveraging robust, hardware-agnostic <strong>Computer Vision (OpenCV)</strong>, the system instantly transforms raw camera uploads or scanned PDFs into rectified sheets and accurate grading metrics. It replaces expensive, specialized OMR scanners and custom heavy sheets with a flexible, high-speed software pipeline.
+                        </p>
+                        <p class="desc-text">
+                            The application provides dual role-based portals for Admins (Graders) and Students, offering class-wide statistical charts, auto-key extraction, and dynamic PDF scorecard delivery.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Key Features -->
+                <div class="section-box" style="flex: 1.2;">
+                    <div class="section-header bg-green">
+                        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        Key Features
+                    </div>
+                    <div class="section-content">
+                        <ul class="features-list">
+                            <li>
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                <strong>Quad-Corner Perspective Alignment:</strong> Auto-straightens and warps tilted or rotated sheets to 800x1100 px.
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                <strong>High-Precision Contour Filters:</strong> Filters bubble circles using aspect ratios and circularity (>0.78).
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                <strong>Double-Shade & Blank Indicators:</strong> Intelligently rejects multi-marked inputs and logs omitted questions.
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                <strong>Flexible Key Definition:</strong> Supports manual grids, bulk text synchronization, and auto-OMR sheet key extraction.
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                <strong>Dynamic PDF Report Cards:</strong> Builds formatted ReportLab PDFs containing visual color-annotated feedback.
+                            </li>
+                            <li>
+                                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                <strong>High-Speed Batch Grading:</strong> Accepts multiple files or ZIP folders, auto-matching student records.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Technology Stack -->
+                <div class="section-box" style="flex: 0.8;">
+                    <div class="section-header bg-purple">
+                        <svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.3C.5 6.7.9 9.8 2.9 11.8c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.6z"/></svg>
+                        Technology Stack
+                    </div>
+                    <div class="section-content">
+                        <div class="tech-grid">
+                            <div class="tech-item">
+                                <span class="tech-label">Backend</span>
+                                <span class="tech-val">Python (Flask), Werkzeug</span>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-label">CV Engine</span>
+                                <span class="tech-val">OpenCV, NumPy, Imutils</span>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-label">Database</span>
+                                <span class="tech-val">SQLite, Flask-SQLAlchemy</span>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-label">Report Engine</span>
+                                <span class="tech-val">ReportLab, Pillow (PIL)</span>
+                            </div>
+                            <div class="tech-item">
+                                <span class="tech-label">Frontend</span>
+                                <span class="tech-val">HTML5, Vanilla CSS3, JS (ES6)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- CENTER COLUMN -->
+            <div class="center-column">
+                
+                <!-- System Workflow -->
+                <div class="section-box" style="margin-bottom: 0;">
+                    <div class="section-header bg-blue">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.53c-.26-.81-1-1.4-1.9-1.4h-1v-3c0-.55-.45-1-1-1h-6v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.4z"/></svg>
+                        System Workflow & Role Automation
+                    </div>
+                    <div class="section-content" style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        
+                        <div class="flow-container">
+                            <div class="flow-row">
+                                <div class="flow-node node-primary">
+                                    <div class="flow-node-title">Initial Entry</div>
+                                    USER LOGIN
+                                </div>
+                                <div class="flow-arrow">➜</div>
+                                <div class="flow-node node-purple">
+                                    <div class="flow-node-title">Security Gateway</div>
+                                    AUTHENTICATION
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="role-grid">
+                            <div class="role-card">
+                                <div class="role-card-header bg-navy">ADMIN PORTAL</div>
+                                <ul>
+                                    <li>Manage subjects & custom examinations.</li>
+                                    <li>Input or paste answer keys in bulk.</li>
+                                    <li>Upload and grade student bubble sheets.</li>
+                                    <li>Extract answer keys from scanned sheets.</li>
+                                    <li>Analyze class metrics and averages.</li>
+                                </ul>
+                            </div>
+                            <div class="role-card">
+                                <div class="role-card-header bg-green">STUDENT PORTAL</div>
+                                <ul>
+                                    <li>Secure profile login.</li>
+                                    <li>View overall dashboard metrics.</li>
+                                    <li>Examine detailed score sheets.</li>
+                                    <li>View correct/wrong annotated bubbles.</li>
+                                    <li>Download official evaluation PDFs.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- OMR Processing Pipeline -->
+                <div class="section-box" style="margin-bottom: 0;">
+                    <div class="section-header bg-orange">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                        Computer Vision & Image Rectification Pipeline
+                    </div>
+                    <div class="section-content" style="display: flex; flex-direction: column; gap: 8px;">
+                        
+                        <div class="flow-container">
+                            <div class="flow-row">
+                                <div class="flow-node node-primary">
+                                    <div class="flow-node-title">Step 1</div>
+                                    Raw Sheet Upload
+                                </div>
+                                <div class="flow-arrow">➔</div>
+                                <div class="flow-node node-orange">
+                                    <div class="flow-node-title">Step 2</div>
+                                    Grayscale & Blur
+                                </div>
+                                <div class="flow-arrow">➔</div>
+                                <div class="flow-node node-orange">
+                                    <div class="flow-node-title">Step 3</div>
+                                    Adaptive Threshold
+                                </div>
+                            </div>
+                            
+                            <div style="height: 10px; font-weight: bold; color: var(--text-muted); margin: 3px 0;">▼</div>
+                            
+                            <div class="flow-row">
+                                <div class="flow-node node-green">
+                                    <div class="flow-node-title">Step 6</div>
+                                    Rectified Viewport
+                                </div>
+                                <div class="flow-arrow">Labyrinth</div>
+                                <div class="flow-node node-purple">
+                                    <div class="flow-node-title">Step 5</div>
+                                    Perspective Warp
+                                </div>
+                                <div class="flow-arrow">◀</div>
+                                <div class="flow-node node-orange">
+                                    <div class="flow-node-title">Step 4</div>
+                                    Corner Marker Find
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Bubble Density Evaluation -->
+                <div class="section-box" style="margin-bottom: 0; flex-grow: 1;">
+                    <div class="section-header bg-pink">
+                        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2z"/></svg>
+                        Precise Bubble Grid Density Evaluation Workflow
+                    </div>
+                    <div class="section-content" style="display: flex; flex-direction: column; justify-content: center;">
+                        <div class="flow-container" style="padding: 5px;">
+                            <div class="flow-row">
+                                <div class="flow-node node-primary" style="font-size: 8px;">
+                                    Group into Rows
+                                </div>
+                                <div class="flow-arrow">➔</div>
+                                <div class="flow-node node-primary" style="font-size: 8px;">
+                                    Cluster Option Quads
+                                </div>
+                                <div class="flow-arrow">➔</div>
+                                <div class="flow-node node-orange" style="font-size: 8px;">
+                                    Mask active pixels
+                                </div>
+                                <div class="flow-arrow">➔</div>
+                                <div class="flow-node node-orange" style="font-size: 8px;">
+                                    Density &ge; 45% Check
+                                </div>
+                            </div>
+                            
+                            <div style="height: 10px; font-weight: bold; color: var(--text-muted); margin: 3px 0;">▼</div>
+                            
+                            <div class="flow-row">
+                                <div class="flow-node node-green" style="font-size: 8px;">
+                                    Single: Marked Option
+                                </div>
+                                <div class="flow-arrow">or</div>
+                                <div class="flow-node node-pink" style="font-size: 8px;">
+                                    Double: INVALID
+                                </div>
+                                <div class="flow-arrow">or</div>
+                                <div class="flow-node node-purple" style="font-size: 8px;">
+                                    Omitted: BLANK
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Benefits -->
+                <div class="section-box" style="margin-bottom: 0;">
+                    <div class="section-content" style="padding: 0 10px 10px 10px;">
+                        <div class="benefits-row">
+                            <div class="benefit-card">
+                                <div class="benefit-icon">⚙️</div>
+                                <h4>No Hardware</h4>
+                                <p>Uses standard office files, phone cams, or scans.</p>
+                            </div>
+                            <div class="benefit-card">
+                                <div class="benefit-icon">⏱️</div>
+                                <h4>Millisecond Speed</h4>
+                                <p>Grades sheets and generates results in seconds.</p>
+                            </div>
+                            <div class="benefit-card">
+                                <div class="benefit-icon">📊</div>
+                                <h4>Clear Analytics</h4>
+                                <p>Delivers clean charts and class summaries.</p>
+                            </div>
+                            <div class="benefit-card">
+                                <div class="benefit-icon">🛡️</div>
+                                <h4>Grading Integrity</h4>
+                                <p>Rejects cheat attempts & double shading.</p>
+                            </div>
+                            <div class="benefit-card">
+                                <div class="benefit-icon">🎓</div>
+                                <h4>Personalized Portal</h4>
+                                <p>Students securely review detailed mistakes.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="right-column">
+                
+                <!-- Modules & Sub-modules -->
+                <div class="section-box" style="flex: 1.8;">
+                    <div class="section-header bg-navy">
+                        <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+                        Modules & Sub-Modules
+                    </div>
+                    <div class="section-content">
+                        
+                        <div class="module-block">
+                            <div class="module-block-title">
+                                <span>1. ADMINISTRATOR CONSOLE</span>
+                                <span class="module-num">Mod 1</span>
+                            </div>
+                            <ul>
+                                <li><strong>Subject/Exam Configurator:</strong> Setup classes and exams.</li>
+                                <li><strong>Answer Key Management:</strong> Grid sync or text synchronization.</li>
+                                <li><strong>Single OMR Grader:</strong> Instant camera grading tool.</li>
+                                <li><strong>ZIP Batch Processor:</strong> Auto-evaluates student folders.</li>
+                                <li><strong>Class Analytics Room:</strong> Average, passing, and score counts.</li>
+                            </ul>
+                        </div>
+
+                        <div class="module-block" style="border-left-color: var(--accent-teal);">
+                            <div class="module-block-title">
+                                <span>2. SECURE STUDENT DESK</span>
+                                <span class="module-num" style="background-color: var(--accent-teal);">Mod 2</span>
+                            </div>
+                            <ul>
+                                <li><strong>Verified Student Login:</strong> Secure session encryption.</li>
+                                <li><strong>Performance Log:</strong> Track average and exam score lists.</li>
+                                <li><strong>Evaluated Sheet Overlay:</strong> Color-annotated OMR view.</li>
+                                <li><strong>Official PDF Generator:</strong> Download compiled ReportLab PDFs.</li>
+                            </ul>
+                        </div>
+
+                        <div class="module-block" style="border-left-color: var(--accent-orange);">
+                            <div class="module-block-title">
+                                <span>3. COMPUTER VISION SYSTEM</span>
+                                <span class="module-num" style="background-color: var(--accent-orange);">Mod 3</span>
+                            </div>
+                            <ul>
+                                <li><strong>Geometric Rectifier:</strong> Detects 4-corner squares & warps image.</li>
+                                <li><strong>Circle Shape Filter:</strong> Isolates bubble circles by circularity metric.</li>
+                                <li><strong>Active Mask Density:</strong> Integrates pixels within contour space.</li>
+                                <li><strong>Feedback Painter:</strong> Overlays color circles over answer sheet.</li>
+                            </ul>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Unique Feature: QR Auto-Pairing -->
+                <div class="section-box" style="flex: 0.9; margin-bottom: 0;">
+                    <div class="section-header bg-orange">
+                        <svg viewBox="0 0 24 24"><path d="M3 3v6h6V3H3zm4 4H5V5h2v2zm-4 5v6h6v-6H3zm4 4H5v-2h2v2zM12 3v6h6V3h-6zm4 4h-2V5h2v2zm-4 5v6h6v-6h-6zm4 4h-2v-2h2v2z"/></svg>
+                        QR Code Autoclass Pairing (Unique Feature)
+                    </div>
+                    <div class="section-content">
+                        <p class="desc-text" style="font-size: 8.5px; margin-bottom: 4px;">
+                            Students no longer need manual pairing. Each warped answer sheet scanned is scanned for a QR payload to pair sheets automatically.
+                        </p>
+                        
+                        <div class="feature-flow">
+                            <div class="feature-flow-title">
+                                <span>QR Processing Steps</span>
+                                <span style="color: #f76707;">⚡ REAL-TIME</span>
+                            </div>
+                            <div class="feature-flow-steps">
+                                <div class="feature-step">Scan Rectified Sheet</div>
+                                <div class="feature-arrow">➔</div>
+                                <div class="feature-step">Detect QR & Decode</div>
+                                <div class="feature-arrow">➔</div>
+                                <div class="feature-step">Pair Roll & Paper ID</div>
+                            </div>
+                            <div style="font-size: 7.5px; color: #d9480f; font-weight: bold; text-align: center; margin-top: 5px;">
+                                Auto-Pair Result: Success ➔ Synced to DB!
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            <div class="footer-left">Developed by: Final Year Research Group</div>
+            <div class="footer-center">Academic Project | Automated Examination Evaluation</div>
+            <div class="footer-right">Empowering Educators, Enhancing Speed & Accuracy</div>
+        </div>
+
+    </div>
+
+</body>
+</html>

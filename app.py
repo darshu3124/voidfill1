@@ -16,7 +16,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.units import inch
 import io
-from utils.email_service import send_result_email
 import socket
 import zipfile
 import tempfile
@@ -318,6 +317,15 @@ def admin_dashboard():
 def admin_answer_key():
     if session.get('role') != 'admin':
         return redirect(url_for('login'))
+    
+    admin_user = session.get('admin_username', 'admin')
+    if admin_user == 'admin':
+        subj = Subject.query.first()
+    else:
+        subj = Subject.query.filter_by(admin_username=admin_user).first()
+        
+    if subj:
+        return redirect(url_for('admin_dashboard', subject_id=subj.id))
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/add_subject', methods=['POST'])
@@ -444,6 +452,9 @@ def clear_answer_key():
     except Exception as e:
         db.session.rollback()
         flash(f'Error clearing answer key: {e}', 'danger')
+    
+    return redirect(url_for('admin_dashboard', subject_id=subject_id))
+
 def evaluate_single_omr(upload_path, filename, student, subject_id):
     import time
     processed_filename = f"processed_{filename.rsplit('.', 1)[0]}.jpg"
@@ -599,7 +610,6 @@ def evaluate_single_omr(upload_path, filename, student, subject_id):
         lan_ip = get_lan_ip()
         result_url = result_url.replace(parsed_url.hostname, lan_ip)
     
-    send_result_email(student.email, student.name, result_url)
     return result_id
 
 @app.route('/api/paper_info/<string:paper_number>')
