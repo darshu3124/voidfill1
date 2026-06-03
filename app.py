@@ -685,6 +685,7 @@ def batch_upload_omr():
     if session.get('role') != 'admin':
         return redirect(url_for('login'))
         
+    subject_id = request.form.get('subject_id')
     paper_number = request.form.get('paper_number')
     
     # Determine the specific Answer Key
@@ -1213,7 +1214,7 @@ if __name__ == '__main__':
     ngrok_url = get_ngrok_url()
     
     print("\n" + "="*50)
-    print("🚀 OMR SYSTEM - MOBILE ACCESS GUIDE")
+    print("OMR SYSTEM - MOBILE ACCESS GUIDE")
     print("="*50)
     print(f"1. LAN ACCESS (HTTP): http://{lan_ip}:5000")
     print("   (Good for standard uploads, but no live scanner)")

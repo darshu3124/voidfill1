@@ -15,43 +15,40 @@ def get_perspective_transform(image):
     
     # Adaptive threshold to find the marks (black squares)
     thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                   cv2.THRESH_BINARY_INV, 11, 2)
+                                   cv2.THRESH_BINARY_INV, 51, 10)
     
     cnts, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    marks = []
-    for c in cnts:
-        peri = cv2.arcLength(c, True)
-        approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-        
-        if len(approx) == 4:
-            x, y, w, h = cv2.boundingRect(approx)
-            aspect_ratio = w / float(h)
-            area = cv2.contourArea(c)
-            
-            # Looking for the corner squares (usually small relative to page but distinct)
-            if area > 100 and 0.8 <= aspect_ratio <= 1.2:
-                marks.append(approx)
-    
-    if len(marks) < 4:
-        # Fallback: if we can't find 4 marks, resize and proceed without warp
-        return cv2.resize(image, (800, 1100))
-
-    # Get centroids
     centers = []
-    for m in marks:
-        M = cv2.moments(m)
-        if M["m00"] != 0:
-            cX = int(M["m10"] / M["m00"])
-            cY = int(M["m01"] / M["m00"])
-            centers.append((cX, cY))
+    for c in cnts:
+        x, y, w, h = cv2.boundingRect(c)
+        aspect_ratio = w / float(h)
+        area = cv2.contourArea(c)
+        solidity = area / float(w * h) if w * h > 0 else 0
+        
+        # Corner marks are small black squares on the sheet
+        if 50 < area < (width * height * 0.05):
+            if 0.65 <= aspect_ratio <= 1.55 and solidity > 0.5:
+                centers.append((x + w//2, y + h//2))
     
-    # Sort centers: top-left, top-right, bottom-left, bottom-right
-    centers = sorted(centers, key=lambda x: x[1])
-    top = sorted(centers[:2], key=lambda x: x[0])
-    bottom = sorted(centers[2:], key=lambda x: x[0])
+    # Group candidate centers into the 4 quadrants of the image
+    quad_tl = [pt for pt in centers if pt[0] < width / 2 and pt[1] < height / 2]
+    quad_tr = [pt for pt in centers if pt[0] >= width / 2 and pt[1] < height / 2]
+    quad_bl = [pt for pt in centers if pt[0] < width / 2 and pt[1] >= height / 2]
+    quad_br = [pt for pt in centers if pt[0] >= width / 2 and pt[1] >= height / 2]
     
-    src_pts = np.float32([top[0], top[1], bottom[0], bottom[1]])
+    # We must have at least one corner mark candidate in each quadrant to perform a stable warp
+    if not (quad_tl and quad_tr and quad_bl and quad_br):
+        # Fallback: if we don't have all 4 quadrants represented, resize and proceed without warping
+        return cv2.resize(image, (800, 1100))
+    
+    # Select the candidate in each quadrant closest to that respective corner of the page
+    pt_tl = min(quad_tl, key=lambda pt: pt[0]**2 + pt[1]**2)
+    pt_tr = min(quad_tr, key=lambda pt: (pt[0] - width)**2 + pt[1]**2)
+    pt_bl = min(quad_bl, key=lambda pt: pt[0]**2 + (pt[1] - height)**2)
+    pt_br = min(quad_br, key=lambda pt: (pt[0] - width)**2 + (pt[1] - height)**2)
+    
+    src_pts = np.float32([pt_tl, pt_tr, pt_bl, pt_br])
     
     # Define destination points (A4ish aspect ratio)
     dest_w = 800
@@ -90,14 +87,18 @@ def collect_selected_answers(image):
                     temp_candidates.append({'center': (bx + bw//2, by + bh//2), 'rect': (bx, by, bw, bh)})
 
     # Robust duplicate removal (removing overlapping contours like letters vs bubbles)
+    # Using 20px threshold to merge duplicate concentric contours of the same bubble.
     all_candidates = []
     for cand in temp_candidates:
         is_dup = False
         for final in all_candidates:
             dist = np.sqrt((cand['center'][0] - final['center'][0])**2 + (cand['center'][1] - final['center'][1])**2)
-            if dist < 15: # Merge if centroids are very close
-                # Keep the one with larger area (likely the bubble outline)
+            if dist < 20: 
                 is_dup = True
+                # Keep the larger contour/bounding box to ensure we get the full bubble outline
+                if cand['rect'][2] * cand['rect'][3] > final['rect'][2] * final['rect'][3]:
+                    final['rect'] = cand['rect']
+                    final['center'] = cand['center']
                 break
         if not is_dup:
             all_candidates.append(cand)
@@ -161,7 +162,8 @@ def collect_selected_answers(image):
                     pixel_vals = []
                     for b in group:
                         mask = np.zeros(thresh.shape, dtype="uint8")
-                        cv2.circle(mask, b['center'], int(min(b['rect'][2], b['rect'][3]) // 2 * 0.8), 255, -1)
+                        # Using 0.6 factor to target only the center of the bubble, ignoring the border.
+                        cv2.circle(mask, b['center'], int(min(b['rect'][2], b['rect'][3]) // 2 * 0.6), 255, -1)
                         mask_pixels = cv2.countNonZero(mask)
                         filled_pixels = cv2.countNonZero(cv2.bitwise_and(thresh, thresh, mask=mask))
                         pixel_vals.append((filled_pixels / mask_pixels) * 100)
@@ -178,18 +180,17 @@ def collect_selected_answers(image):
                     # Track which bubbles in this group are actually shaded
                     # (Must be high absolute fill AND close to the best fill in this row)
                     shaded_this_q = []
-                    if best_fill >= 45:
+                    if best_fill >= 35:
                         for idx, fill in enumerate(pixel_vals):
-                            if fill >= 45 and (fill / best_fill) >= 0.8:
+                            if fill >= 35 and (fill / best_fill) >= 0.75:
                                 shaded_this_q.append(chr(65 + idx))
                     shaded_metadata[q_label] = shaded_this_q
                     
-                    if best_fill < 45: # Must be at least 45% filled to count as any selection
+                    if best_fill < 35: # Must be at least 35% filled to count as any selection
                         student_answers[q_label] = "BLANK"
                     elif len(sorted_vals) > 1:
-                        # Only mark INVALID if the second-best is VERY high (actual double shading)
-                        # and very close to the best one.
-                        if sorted_vals[1] > 40 and (sorted_vals[1] / sorted_vals[0]) > 0.85:
+                        # Only mark INVALID if the second-best is high and close to the best one (double shading)
+                        if sorted_vals[1] > 30 and (sorted_vals[1] / sorted_vals[0]) > 0.75:
                             student_answers[q_label] = "INVALID"
                         else:
                             student_answers[q_label] = chr(65 + max_idx)

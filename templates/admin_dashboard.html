@@ -138,27 +138,41 @@
             <!-- Manage Subjects Card -->
             <div class="{{ 'col-12' if selected_subject_id else 'col-md-6' }} mt-4 mb-2">
                 <div class="card shadow-lg border-0 bg-glass-dark p-2 border-danger border-top border-3 h-100">
-                    <div class="card-header border-0 bg-transparent text-white pt-2 pb-0 d-flex justify-content-between align-items-center">
-                        <h6 class="fw-bold mb-0 small text-uppercase letter-spacing-1"><i class="bi bi-folder-x text-danger me-2"></i> Manage Subjects</h6>
-                        <form action="{{ url_for('admin_delete_all_subjects') }}" method="POST" class="m-0" onsubmit="return confirm('WARNING: This will delete ALL subjects, including their papers, answer keys, and results. This action is irreversible. Proceed?')">
-                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-2 py-0 shadow-sm hover-pop" style="font-size: 0.7rem;">Delete All</button>
+                    <div
+                        class="card-header border-0 bg-transparent text-white pt-2 pb-0 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0 small text-uppercase letter-spacing-1"><i
+                                class="bi bi-folder-x text-danger me-2"></i> Manage Subjects</h6>
+                        <form action="{{ url_for('admin_delete_all_subjects') }}" method="POST" class="m-0"
+                            onsubmit="return confirm('WARNING: This will delete ALL subjects, including their papers, answer keys, and results. This action is irreversible. Proceed?')">
+                            <button type="submit"
+                                class="btn btn-outline-danger btn-sm rounded-pill px-2 py-0 shadow-sm hover-pop"
+                                style="font-size: 0.7rem;">Delete All</button>
                         </form>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive" style="max-height: 100px; overflow-y: auto;">
-                            <table class="table table-dark table-hover table-sm table-borderless align-middle mb-0 custom-table">
+                            <table
+                                class="table table-dark table-hover table-sm table-borderless align-middle mb-0 custom-table">
                                 <tbody>
                                     {% for s in subjects %}
                                     <tr class="border-bottom border-light border-opacity-10">
                                         <td class="text-white small fw-bold">{{ s.name }}</td>
                                         <td class="text-end pe-2">
-                                            <form action="{{ url_for('admin_delete_subject', subject_id=s.id) }}" method="POST" class="m-0" onsubmit="return confirm('Delete subject {{ s.name }}? This removes its keys, results, and papers.')">
-                                                <button type="submit" class="btn btn-sm btn-link text-danger p-0 m-0 hover-pop" data-bs-toggle="tooltip" title="Delete Subject"><i class="bi bi-trash-fill"></i></button>
+                                            <form action="{{ url_for('admin_delete_subject', subject_id=s.id) }}"
+                                                method="POST" class="m-0"
+                                                onsubmit="return confirm('Delete subject {{ s.name }}? This removes its keys, results, and papers.')">
+                                                <button type="submit"
+                                                    class="btn btn-sm btn-link text-danger p-0 m-0 hover-pop"
+                                                    data-bs-toggle="tooltip" title="Delete Subject"><i
+                                                        class="bi bi-trash-fill"></i></button>
                                             </form>
                                         </td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="2" class="text-center text-muted small py-3">No subjects found.</td></tr>
+                                    <tr>
+                                        <td colspan="2" class="text-center text-muted small py-3">No subjects found.
+                                        </td>
+                                    </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -278,8 +292,10 @@
                 class="card-header border-0 bg-transparent text-white pt-4 pb-3 px-4 d-flex flex-wrap justify-content-between align-items-center border-bottom border-light border-opacity-10">
                 <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history text-info me-2"></i> Recent Scanner Logs</h5>
                 <div class="d-flex gap-2 flex-wrap">
-                    <form action="{{ url_for('admin_delete_all_results') }}" method="POST" class="m-0" onsubmit="return confirm('Erase ALL scanner history permanently?')">
-                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm hover-pop">
+                    <form action="{{ url_for('admin_delete_all_results') }}" method="POST" class="m-0"
+                        onsubmit="return confirm('Erase ALL scanner history permanently?')">
+                        <button type="submit"
+                            class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm hover-pop">
                             <i class="bi bi-trash3-fill me-1"></i> Clear ALL
                         </button>
                     </form>
@@ -339,10 +355,14 @@
                                             class="btn btn-sm btn-dark border-light border-opacity-10 text-danger action-btn-danger"
                                             data-bs-toggle="tooltip" title="Print Log"><i
                                                 class="bi bi-file-pdf-fill"></i></a>
-                                        <form action="{{ url_for('admin_delete_result', result_id=r.id) }}" method="POST" class="m-0" onsubmit="return confirm('Delete this log entry?')">
-                                            <button type="submit" class="btn btn-sm btn-dark border-light border-opacity-10 text-muted action-btn-danger border-start-0" 
+                                        <form action="{{ url_for('admin_delete_result', result_id=r.id) }}"
+                                            method="POST" class="m-0"
+                                            onsubmit="return confirm('Delete this log entry?')">
+                                            <button type="submit"
+                                                class="btn btn-sm btn-dark border-light border-opacity-10 text-muted action-btn-danger border-start-0"
                                                 style="border-top-left-radius: 0; border-bottom-left-radius: 0;"
-                                                data-bs-toggle="tooltip" title="Delete"><i class="bi bi-trash-fill"></i></button>
+                                                data-bs-toggle="tooltip" title="Delete"><i
+                                                    class="bi bi-trash-fill"></i></button>
                                         </form>
                                     </div>
                                 </td>
@@ -363,7 +383,8 @@
             </div>
             {% if results|length > 5%}
             <div class="card-footer bg-transparent border-0 text-center py-3">
-                <a href="{{ url_for('admin_all_results') }}" class="btn btn-link text-info text-decoration-none shadow-none btn-sm fw-bold">View full archive
+                <a href="{{ url_for('admin_all_results') }}"
+                    class="btn btn-link text-info text-decoration-none shadow-none btn-sm fw-bold">View full archive
                     <i class="bi bi-arrow-right"></i></a>
             </div>
             {% endif %}

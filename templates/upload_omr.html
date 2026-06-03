@@ -55,11 +55,24 @@
                         document.querySelectorAll('.target_student_id').forEach(el => el.value = sid);
                         document.querySelectorAll('.target_subject_id').forEach(el => el.value = subid);
                         document.querySelectorAll('.target_paper_number').forEach(el => el.value = pnum);
+                        
+                        const batchSelect = document.getElementById('batch_subject_id');
+                        if (batchSelect && subid) {
+                            batchSelect.value = subid;
+                        }
                     }
 
                     studentSelect.addEventListener('change', syncIds);
                     subjectSelect.addEventListener('change', syncIds);
                     paperInput.addEventListener('input', syncIds);
+
+                    const batchSelect = document.getElementById('batch_subject_id');
+                    if (batchSelect) {
+                        batchSelect.addEventListener('change', () => {
+                            subjectSelect.value = batchSelect.value;
+                            syncIds();
+                        });
+                    }
 
                     async function verifyPaper() {
                         const code = paperInput.value.trim();
@@ -222,11 +235,10 @@
                     <div class="tab-pane fade" id="batch" role="tabpanel">
                         <form id="batchForm" action="{{ url_for('batch_upload_omr') }}" method="POST"
                             enctype="multipart/form-data">
-                            <input type="hidden" name="subject_id" class="target_subject_id">
                             <input type="hidden" name="paper_number" class="target_paper_number">
                             <div class="mb-4">
                                 <label class="form-label fw-bold">Select Subject / Exam for Batch</label>
-                                <select name="subject_id" class="form-select form-select-lg border-2" required>
+                                <select id="batch_subject_id" name="subject_id" class="form-select form-select-lg border-2" required>
                                     <option value="">-- Choose Subject / Exam --</option>
                                     {% for s in subjects %}
                                     <option value="{{ s.id }}">{{ s.name }}</option>
