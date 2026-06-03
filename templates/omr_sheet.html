@@ -39,6 +39,7 @@
             flex-direction: column;
             border: 1px solid #ddd;
             box-sizing: border-box;
+            page-break-after: always;
         }
 
         /* cv-marker styling remains unchanged - critical for detection */
@@ -237,7 +238,8 @@
         @media print {
             body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .page { margin: 0; box-shadow: none; border: none; padding: 15mm; }
-            .no-print { display: none; }
+            .page:last-of-type { page-break-after: avoid; }
+            .no-print { display: none !important; }
             @page { size: A4 portrait; margin: 0; }
         }
 
@@ -255,87 +257,214 @@
 </head>
 <body>
 
-<button onclick="window.print()" class="btn btn-primary btn-print no-print">
-    <i class="bi bi-printer-fill me-2"></i> PRINT OMR SHEET
-</button>
-
-<div class="page">
-    <!-- Corner Alignment Markers -->
-    <div class="cv-marker m-tl"></div>
-    <div class="cv-marker m-tr"></div>
-    <div class="cv-marker m-bl"></div>
-    <div class="cv-marker m-br"></div>
-
-    <!-- Header -->
-    <div class="header">
-        <div class="college-name">DR B B Hegde College Kundapura</div>
-        <div class="exam-title">OMR Answer Sheet - MCQ Examination</div>
-        <div class="qr-placeholder">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ paper.paper_number }}" alt="QR Code">
+<!-- Control Panel for OMR Generation -->
+<div class="container-fluid no-print py-3 mb-4 bg-dark text-white border-bottom shadow-sm">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center">
+            <h4 class="mb-0 text-info fw-bold"><i class="bi bi-file-earmark-pdf me-2"></i> OMR Sheet Generator</h4>
         </div>
-    </div>
-
-    <!-- Student Information Area -->
-    <div class="student-info-row">
-        <div class="info-section roll-section">
-            <div class="section-label">Candidate Roll Number</div>
-            <div class="roll-boxes">
-                {% for _ in range(10) %}
-                <div class="roll-box"></div>
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="small text-muted fw-semibold">Personalize OMR:</span>
+            <select id="student_omr_selector" class="form-select form-select-sm border-secondary w-auto bg-dark text-white fw-bold">
+                <option value="" {% if not selected_student_id %}selected{% endif %}>-- Blank / Generic OMR --</option>
+                <option value="all" {% if selected_student_id == 'all' %}selected{% endif %}>-- All Students (Bulk Print) --</option>
+                {% for s in students_list %}
+                <option value="{{ s.id }}" {% if selected_student_id == s.id|string %}selected{% endif %}>
+                    {{ s.name }} ({{ s.email.split('@')[0] }})
+                </option>
                 {% endfor %}
-            </div>
-        </div>
-        <div class="info-section">
-            <div class="section-label">Paper Code</div>
-            <div class="paper-code-display">{{ paper.paper_number }}</div>
-        </div>
-    </div>
-
-    <!-- Instructions Area -->
-    <div class="instruction-box">
-        <div class="section-label" style="text-decoration: underline;">Instructions</div>
-        <ul>
-            <li>Use <strong>Black/Blue</strong> pen only.</li>
-            <li>Fill bubbles <strong>completely</strong>.</li>
-            <li>Only <strong>one answer</strong> per question.</li>
-            <li>Avoid any <strong>stray marks</strong>.</li>
-        </ul>
-    </div>
-
-    <!-- Unified Answer Area (Strict Rectangular Grid) -->
-    <div class="answer-area-boundary">
-        {% set total_rows = (num_questions / 3)|round(0, 'ceil')|int %}
-        {% set total_slots = total_rows * 3 %}
-        {% for idx in range(1, total_slots + 1) %}
-            {% set is_last_row = idx > (total_rows - 1) * 3 %}
-            {% if idx <= num_questions %}
-            <div class="q-item {{ 'last-row' if is_last_row else '' }}">
-                <div class="q-no">{{ idx }}</div>
-                <div class="bubble-group">
-                    <div class="bubble">A</div>
-                    <div class="bubble">B</div>
-                    <div class="bubble">C</div>
-                    <div class="bubble">D</div>
-                </div>
-            </div>
-            {% else %}
-            <div class="q-item empty {{ 'last-row' if is_last_row else '' }}"></div>
-            {% endif %}
-        {% endfor %}
-    </div>
-
-    <!-- Footer Area -->
-    <div class="footer">
-        <div class="sig-container">
-            <div class="sig-line"></div>
-            <div class="sig-label">Candidate's Signature</div>
-        </div>
-        <div class="sig-container">
-            <div class="sig-line"></div>
-            <div class="sig-label">Invigilator's Signature</div>
+            </select>
+            <button onclick="window.print()" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-sm">
+                <i class="bi bi-printer-fill me-1"></i> Print / Save PDF
+            </button>
         </div>
     </div>
 </div>
+
+{% if selected_students %}
+    {% for student in selected_students %}
+    <div class="page">
+        <!-- Corner Alignment Markers -->
+        <div class="cv-marker m-tl"></div>
+        <div class="cv-marker m-tr"></div>
+        <div class="cv-marker m-bl"></div>
+        <div class="cv-marker m-br"></div>
+
+        <!-- Header -->
+        <div class="header">
+            <div class="college-name">DR B B Hegde College Kundapura</div>
+            <div class="exam-title">OMR Answer Sheet - MCQ Examination</div>
+            <div class="qr-placeholder">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ paper.paper_number }}|{{ student.email }}" alt="QR Code">
+            </div>
+        </div>
+
+        <!-- Student Information Area -->
+        <div class="student-info-row">
+            <div class="info-section" style="flex: 1.5;">
+                <div class="section-label">Candidate Name</div>
+                <div style="font-size: 13pt; font-weight: 700; text-transform: uppercase; line-height: 8.5mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000;">
+                    {{ student.name }}
+                </div>
+            </div>
+            <div class="info-section roll-section">
+                <div class="section-label">Candidate Roll Number</div>
+                <div class="roll-boxes">
+                    {% set roll_str = student.email.split('@')[0] %}
+                    {% for i in range(10) %}
+                    <div class="roll-box" style="text-align: center; font-size: 13pt; font-weight: 800; line-height: 8.5mm; color: #000;">
+                        {{ roll_str[i]|upper if i < roll_str|length else '' }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="info-section" style="flex: 1;">
+                <div class="section-label">Paper Code</div>
+                <div class="paper-code-display">{{ paper.paper_number }}</div>
+            </div>
+        </div>
+
+        <!-- Instructions Area -->
+        <div class="instruction-box">
+            <div class="section-label" style="text-decoration: underline;">Instructions</div>
+            <ul>
+                <li>Use <strong>Black/Blue</strong> pen only.</li>
+                <li>Fill bubbles <strong>completely</strong>.</li>
+                <li>Only <strong>one answer</strong> per question.</li>
+                <li>Avoid any <strong>stray marks</strong>.</li>
+            </ul>
+        </div>
+
+        <!-- Unified Answer Area (Strict Rectangular Grid) -->
+        <div class="answer-area-boundary">
+            {% set total_rows = (num_questions / 3)|round(0, 'ceil')|int %}
+            {% set total_slots = total_rows * 3 %}
+            {% for idx in range(1, total_slots + 1) %}
+                {% set is_last_row = idx > (total_rows - 1) * 3 %}
+                {% if idx <= num_questions %}
+                <div class="q-item {{ 'last-row' if is_last_row else '' }}">
+                    <div class="q-no">{{ idx }}</div>
+                    <div class="bubble-group">
+                        <div class="bubble">A</div>
+                        <div class="bubble">B</div>
+                        <div class="bubble">C</div>
+                        <div class="bubble">D</div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="q-item empty {{ 'last-row' if is_last_row else '' }}"></div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- Footer Area -->
+        <div class="footer">
+            <div class="sig-container">
+                <div class="sig-line"></div>
+                <div class="sig-label">Candidate's Signature</div>
+            </div>
+            <div class="sig-container">
+                <div class="sig-line"></div>
+                <div class="sig-label">Invigilator's Signature</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="page">
+        <!-- Corner Alignment Markers -->
+        <div class="cv-marker m-tl"></div>
+        <div class="cv-marker m-tr"></div>
+        <div class="cv-marker m-bl"></div>
+        <div class="cv-marker m-br"></div>
+
+        <!-- Header -->
+        <div class="header">
+            <div class="college-name">DR B B Hegde College Kundapura</div>
+            <div class="exam-title">OMR Answer Sheet - MCQ Examination</div>
+            <div class="qr-placeholder">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ paper.paper_number }}" alt="QR Code">
+            </div>
+        </div>
+
+        <!-- Student Information Area -->
+        <div class="student-info-row">
+            <div class="info-section roll-section">
+                <div class="section-label">Candidate Roll Number</div>
+                <div class="roll-boxes">
+                    {% for _ in range(10) %}
+                    <div class="roll-box"></div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="info-section">
+                <div class="section-label">Paper Code</div>
+                <div class="paper-code-display">{{ paper.paper_number }}</div>
+            </div>
+        </div>
+
+        <!-- Instructions Area -->
+        <div class="instruction-box">
+            <div class="section-label" style="text-decoration: underline;">Instructions</div>
+            <ul>
+                <li>Use <strong>Black/Blue</strong> pen only.</li>
+                <li>Fill bubbles <strong>completely</strong>.</li>
+                <li>Only <strong>one answer</strong> per question.</li>
+                <li>Avoid any <strong>stray marks</strong>.</li>
+            </ul>
+        </div>
+
+        <!-- Unified Answer Area (Strict Rectangular Grid) -->
+        <div class="answer-area-boundary">
+            {% set total_rows = (num_questions / 3)|round(0, 'ceil')|int %}
+            {% set total_slots = total_rows * 3 %}
+            {% for idx in range(1, total_slots + 1) %}
+                {% set is_last_row = idx > (total_rows - 1) * 3 %}
+                {% if idx <= num_questions %}
+                <div class="q-item {{ 'last-row' if is_last_row else '' }}">
+                    <div class="q-no">{{ idx }}</div>
+                    <div class="bubble-group">
+                        <div class="bubble">A</div>
+                        <div class="bubble">B</div>
+                        <div class="bubble">C</div>
+                        <div class="bubble">D</div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="q-item empty {{ 'last-row' if is_last_row else '' }}"></div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- Footer Area -->
+        <div class="footer">
+            <div class="sig-container">
+                <div class="sig-line"></div>
+                <div class="sig-label">Candidate's Signature</div>
+            </div>
+            <div class="sig-container">
+                <div class="sig-line"></div>
+                <div class="sig-label">Invigilator's Signature</div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<script>
+    const selector = document.getElementById('student_omr_selector');
+    if (selector) {
+        selector.addEventListener('change', function() {
+            const val = this.value;
+            const url = new URL(window.location.href);
+            if (val) {
+                url.searchParams.set('student_id', val);
+            } else {
+                url.searchParams.delete('student_id');
+            }
+            window.location.href = url.toString();
+        });
+    }
+</script>
 
 </body>
 </html>

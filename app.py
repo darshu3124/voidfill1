@@ -460,11 +460,34 @@ def evaluate_single_omr(upload_path, filename, student, subject_id):
     processed_filename = f"processed_{filename.rsplit('.', 1)[0]}.jpg"
     processed_path = os.path.join(app.config['PROCESSED_FOLDER'], processed_filename)
     
-    # Prepare answer key for color-coded processing
+    # 1. Run first-pass scan without answer key to detect QR code if present
+    _, total_q, selected, final_path = process_omr(upload_path, processed_path, answer_key=None)
+    
+    qr_code = selected.get('_qr_code')
+    if qr_code:
+        if '|' in qr_code:
+            parts = qr_code.split('|')
+            paper_num = parts[0]
+            student_email = parts[1]
+            detected_student = Student.query.filter_by(email=student_email).first()
+            if detected_student:
+                student = detected_student
+        else:
+            paper_num = qr_code
+            
+        paper_obj = Paper.query.filter_by(paper_number=paper_num).first()
+        if paper_obj:
+            subject_id = paper_obj.subject_id
+            
+    if not student:
+        raise Exception("Student not selected and could not be detected from QR code.")
+    if not subject_id or subject_id == 'auto':
+        raise Exception("Subject/Exam not selected and could not be detected from QR code.")
+        
+    # 2. Prepare answer key and run second-pass scan for final grading and colorized feedback
     keys = AnswerKey.query.filter_by(subject_id=subject_id).all()
     answer_key = {f"Q{k.question_number}": k.correct_option.upper() for k in keys}
-
-    # Process the OMR sheet with visual feedback colorization
+    
     _, total_q, selected, final_path = process_omr(upload_path, processed_path, answer_key=answer_key)
     
     # Calculate score based on the actual answer key
@@ -643,9 +666,8 @@ def upload_omr():
         student_id = request.form.get('student_id')
         subject_id = request.form.get('subject_id')
         
-        # Evaluation logic fully removed. Only subject ID is needed for record keeping.
         if not subject_id:
-            flash('Please select a subject.', 'danger')
+            flash('Please select a subject or choose auto-detection.', 'danger')
             return redirect(request.url)
         
         if 'omr_image' not in request.files:
@@ -666,9 +688,10 @@ def upload_omr():
             file.save(upload_path)
             
             try:
-                student = Student.query.get(student_id)
+                student = Student.query.get(student_id) if student_id and student_id != 'auto' else None
                 result_id = evaluate_single_omr(upload_path, filename, student, subject_id)
-                flash(f'Successfully captured choices for {student.name}!', 'success')
+                result_obj = Result.query.get(result_id)
+                flash(f'Successfully captured choices for {result_obj.student.name}!', 'success')
                 return redirect(url_for('admin_view_result', result_id=result_id))
             except Exception as e:
                 db.session.rollback()
@@ -1188,8 +1211,25 @@ def admin_generate_omr(paper_id):
     questions = json.loads(paper_obj.questions_json)
     num_questions = len(questions)
     
-    # We pass the actual num_questions. The template will handle the dynamic layout.
-    return render_template('omr_sheet.html', paper=paper_obj, num_questions=num_questions)
+    student_id = request.args.get('student_id')
+    students_list = Student.query.all()
+    selected_students = []
+    
+    if student_id == 'all':
+        selected_students = students_list
+    elif student_id:
+        student = Student.query.get(student_id)
+        if student:
+            selected_students = [student]
+            
+    return render_template(
+        'omr_sheet.html', 
+        paper=paper_obj, 
+        num_questions=num_questions, 
+        students_list=students_list, 
+        selected_students=selected_students, 
+        selected_student_id=student_id
+    )
 
 # Error Handling
 @app.errorhandler(413) # File size exceeded

@@ -14,6 +14,7 @@
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Select Student</label>
                         <select id="student_id_select" name="student_id" class="form-select border-2" required>
+                            <option value="auto" selected>🔍 Auto-detect from Sheet QR</option>
                             <option value="">-- Choose Student --</option>
                             {% for s in students %}
                             <option value="{{ s.id }}">{{ s.email }}</option>
@@ -33,6 +34,7 @@
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Select Subject / Exam</label>
                         <select id="subject_id_select" name="subject_id" class="form-select border-2" required>
+                            <option value="auto" selected>🔍 Auto-detect from Sheet QR</option>
                             <option value="">-- Choose Subject / Exam --</option>
                             {% for s in subjects %}
                             <option value="{{ s.id }}">{{ s.name }}</option>
@@ -446,6 +448,23 @@
         document.getElementById('file-name-display').innerText = fileName;
         document.getElementById('file-name-display').classList.add('text-primary');
         document.querySelector('#upload .file-upload-wrapper').classList.add('active');
+        
+        // Auto-select student if filename matches student email or name (excluding "auto")
+        if (input.files[0]) {
+            const baseName = fileName.substring(0, fileName.lastIndexOf('.')).toLowerCase();
+            const studentSelect = document.getElementById('student_id_select');
+            for (let option of studentSelect.options) {
+                if (option.value && option.value !== 'auto') {
+                    const email = option.text.toLowerCase();
+                    const emailPrefix = email.split('@')[0];
+                    if (baseName === emailPrefix || baseName === email) {
+                        studentSelect.value = option.value;
+                        syncIds();
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     function updateBatchFileName(input) {
